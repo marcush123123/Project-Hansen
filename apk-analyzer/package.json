@@ -16,7 +16,9 @@
     "build:electron": "electron-builder --publish never",
     "test": "node scripts/test.cjs",
     "test:sample": "node scripts/sample.cjs",
+    "test:malware-samples": "node scripts/test-malware-samples.cjs",
     "test:electron": "npm run build:vite && node scripts/electron-test.cjs",
+    "test:reputation-electron": "npm run build:vite && node scripts/reputation-electron-test.cjs",
     "postinstall": "node node_modules/electron/install.js"
   },
   "dependencies": {

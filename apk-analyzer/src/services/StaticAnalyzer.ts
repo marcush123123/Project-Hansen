@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs';
 import path from 'path';
+import { MALWARE_PATTERNS } from './MalwareAssessment';
 export const TRACKERS = ['com.facebook.appevents', 'com.google.android.gms.measurement', 'com.google.firebase.analytics', 'com.adjust', 'com.localytics', 'com.flurry', 'com.mixpanel', 'com.amplitude', 'com.appsflyer', 'com.crashlytics', 'com.bytedance.applog'];
 export class StaticAnalyzer {
   static async analyzeCode(dir: string) {
@@ -19,6 +20,7 @@ export class StaticAnalyzer {
       }
       for (const sdk of TRACKERS) if (content.includes(sdk) || content.includes(sdk.replace(/\./g, '/'))) { trackerSDKs.add(sdk); record(sdk, file); }
       const patterns: [string, RegExp][] = [
+        ...MALWARE_PATTERNS,
         ['Dynamic class loading reference', /DexClassLoader|InMemoryDexClassLoader/],
         ['Process execution reference', /Runtime[.;/]exec|ProcessBuilder|Ljava\/lang\/Runtime;/],
         ['Reflection reference', /java[./]lang[./]reflect/],

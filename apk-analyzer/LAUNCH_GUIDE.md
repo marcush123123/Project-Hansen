@@ -60,6 +60,10 @@ Builds all entry points and runs electron-builder for the host OS. Output is in 
 | XAPK mismatch/incomplete base | Obtain a container with one base and matching package/version splits. |
 | AI unavailable or invalid | Check model/key/provider connectivity, or select Local report only. Local analysis remains available. |
 | API key disappears after restart | The OS secure-storage backend is unavailable; keys are session-only in that environment. |
+| VirusTotal is unavailable, unknown or rate limited | Check the separate VirusTotal key and account permissions. Unknown hashes are not safe verdicts. Requests are spaced by 16 seconds; wait before retrying quota failures. |
+| VirusTotal upload remains pending | Use Check status later. Hansen does not automatically poll or upload again. Existing evidence is retained while the new scan is pending. |
+| Original upload file fails hash verification | Select the exact APK/XAPK analyzed for this report, or analyze the changed package again. |
+| Some XAPK entries have no reputation check | Four unique APK hashes are checked automatically. Use Check hash for each remaining entry; incomplete coverage is reflected in the assessment. |
 | PDF export fails | Choose a writable destination with free disk space. The embedded report and history remain available for retry. |
 | Linux Chromium sandbox failure | Run as a normal desktop user with the distribution's sandbox support configured. Do not disable sandboxing in distributed production builds. |
 

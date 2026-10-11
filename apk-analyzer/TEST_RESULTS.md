@@ -1,6 +1,27 @@
 # Validation results
 
-Date: October 7, 2026 (America/Los_Angeles). Host: Linux x64.
+## Malware reputation validation, October 11, 2026
+
+Host: Linux x64. TypeScript checks, production bundling and Linux AppImage packaging passed. The service suite passed **23 tests**, including local rule combinations, negative controls, distinct XAPK hashes, snapshot integrity when a source changes, changed-file upload rejection, multipart bytes, upload destination/size restrictions, invalid responses, authorization/quota failures, pending scans, stale results, preservation of prior detections, and report escaping.
+
+The supplied APKs were scanned locally under neutral filenames to verify content-based findings. Android code was never installed or executed, and no file or hash was sent to VirusTotal during these tests.
+
+| Sample | SHA-256 | Local result |
+| --- | --- | --- |
+| DoubleLockerRansomware.apk | `79e602a062d05fbb1409afc16e6d41ac0645576b2b5c1899dc93e6852c30a71f` | Potentially malicious: ransomware-like device takeover and persistent overlay capabilities |
+| vi4a.apk | `b0ff5690c31f160808a869a14fa55f9e38c82de81cf98b895badc88c997ee45c` | Potentially malicious: persistent overlay capabilities |
+
+The packaged Linux executable passed the desktop reputation test using isolated settings and mocked VirusTotal responses. Verified flows include no network calls while disabled, API key persistence without plaintext storage, hash lookup, provider-attributed warning in the viewer and history, PDF export, cancellation without upload, confirmed upload of the exact reviewed bytes, pending analysis refresh, report reload, and automatic hash lookup without automatic upload. Both supplied APKs also produced the local warning and a PDF from the packaged application.
+
+Artifacts: `output/malware-samples/` contains local JSON/HTML reports; `output/DoubleLockerRansomware.apk-malware-report.pdf` and `output/vi4a.apk-malware-report.pdf` contain the desktop exports. `output/reputation-report.pdf` contains **simulated** VirusTotal evidence from a harmless fixture, not a live engine verdict.
+
+Commands: `npm test`, `npm run test:malware-samples`, `npm run build`, and `scripts/reputation-electron-test.cjs` against the packaged executable. GUI automation used Xvfb and the test-only sandbox override, as in the earlier validation. A live VirusTotal account/API key was not supplied: live lookup, vendor accuracy, real upload processing, and live large-file submission remain unverified. The large-file URL rejection and size limits were tested with mocked responses. No claim of malware detection accuracy is made from these two samples.
+
+Current AppImage: `build/Hansen-1.0.0.AppImage`, 125,383,691 bytes, SHA-256 `e9dd5a45b7a9132104fd26d97573df57e62ababa7dc46a1cc57885ad4a9052e2`.
+
+## Earlier baseline
+
+The remaining sections record October 7, 2026 validation on Linux x64, before malware reputation integration.
 
 ## Final source and compilation
 
@@ -63,6 +84,6 @@ The exported sample is `output/tiktok-hansen-report.pdf` (18 A4 pages). It was r
 
 Live Ollama or cloud inference (no service credentials supplied), Windows/macOS packaging, signing/notarization, Android execution, signature verification, OBB behavior and malware detection accuracy. The scanner's static scope and caps are described in each report and in the README.
 
-## Final AppImage identity
+## Earlier AppImage identity
 
 Size: 125,350,855 bytes. SHA-256: `fc53462d14b444850840d7ac1ad87b413d48e4c6312f9404d6e507de491fea46`.

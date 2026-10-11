@@ -16,6 +16,7 @@ playwright-report/
 *.aab
 *.obb
 apk-analyzer/temp/
+*.txt
 
 # Environment settings and credentials
 .env

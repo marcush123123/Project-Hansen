@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import './malware.test';
 import assert from 'node:assert/strict';
 import { promises as fs } from 'fs';
 import os from 'os';

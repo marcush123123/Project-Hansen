@@ -5,9 +5,23 @@ Hansen is a desktop application for static inspection of Android APK and XAPK pa
 
 ## Scoring and grades
 
+Hansen displays a separate malware assessment before the configuration grade. A favorable letter grade cannot override a malware warning. Older reports without this assessment must be scanned again.
+
 The report assigns a heuristic static review score from 0 to 100. It starts at 100 and subtracts 25 points for each high severity finding category, 10 for each medium category, and 3 for each low category. Informational findings do not reduce the score. The letter grade is A for 90 or higher, B for 75 to 89, C for 60 to 74, D for 40 to 59, and F below 40. The separate telemetry indicator score starts at 100, subtracts 8 points for each identified analytics or telemetry SDK up to 48 points, and 12 points when potential credential patterns are found. Both scores are bounded between 0 and 100.
 
 These scores summarize configured static indicators. They are not probabilities, malware detections, or certifications of safety. A high score does not prove that an APK is harmless, and a low score does not prove malicious intent.
+
+## Malware assessment and VirusTotal
+
+Local rules identify combinations of capabilities associated with ransomware, persistent overlays, SMS abuse, and destructive commands. Matches are reported as potentially malicious, with evidence and limitations. Legitimate software can share these capabilities; filenames and package names do not determine the verdict. Static analysis does not prove that a code path executes.
+
+Enable VirusTotal hash lookups in Analysis settings and enter your own API key to add reputation evidence. Hansen sends exact APK SHA-256 hashes, including individual APKs inside XAPK containers. It checks up to four unique APKs automatically; unchecked splits remain visible and can be checked individually from the report. Requests are spaced by at least 16 seconds and quota failures are reported.
+
+Three or more malicious engine detections produce “Flagged malicious by VirusTotal.” One or two malicious detections, any suspicious detection, or a local malware rule produce “Potentially malicious.” These are Hansen policy thresholds, not certainty or independent engine consensus. “No malicious evidence found” requires completed results less than 30 days old for every APK, with at least one harmless or undetected result per APK and no local or remote flags. All other negative cases remain incomplete. An undetected engine result is not a safety endorsement. Previous detections remain visible when a refresh fails or a new scan is pending.
+
+The report offers an optional APK upload. Hansen asks you to select the original package, verifies its hash, and requests confirmation before sending any file. VirusTotal may retain and share submitted files. For XAPK containers, only the selected contained APK is uploaded. Uploads are limited to 650 MiB; use Check status to retrieve the completed result. Uploading does not automatically produce a verdict.
+
+VirusTotal requires an account and API key. Its [public API terms](https://docs.virustotal.com/reference/public-vs-premium-api) prohibit commercial product use; commercial deployments require an appropriate licensed account. [File submission documentation](https://docs.virustotal.com/reference/files-scan) describes limits and data sharing. Local analysis remains available without VirusTotal. Optional AI commentary cannot override the malware assessment.
 
 ## Safety review
 
