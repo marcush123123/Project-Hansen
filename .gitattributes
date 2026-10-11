@@ -1,0 +1,14 @@
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.icns binary
+*.pdf binary
+*.apk binary
+*.xapk binary
+*.aab binary
+*.obb binary
+*.AppImage binary
+*.zip binary

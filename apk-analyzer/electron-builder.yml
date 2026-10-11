@@ -1,0 +1,41 @@
+appId: com.apk-analyzer.app
+productName: Hansen
+electronDist: node_modules/electron/dist
+beforeBuild: scripts/before-build.cjs
+directories:
+  buildResources: assets
+  output: build
+files:
+  - dist/**/*
+  - "!dist/**/*.map"
+  - assets/icon.png
+  - "!node_modules/**/*"
+win:
+  target:
+    - nsis
+    - portable
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+mac:
+  target:
+    - dmg
+    - zip
+dmg:
+  iconSize: 130
+  contents:
+    - x: 410
+      y: 150
+      type: link
+      path: /Applications
+    - x: 130
+      y: 150
+      type: file
+linux:
+  syncDesktopName: true
+  icon: assets/icon.png
+  target:
+    - AppImage
+  category: Development

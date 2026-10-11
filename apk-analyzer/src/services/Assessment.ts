@@ -1,0 +1,25 @@
+import { AnalysisReport, Finding, AnalysisResult } from '../types';
+export function assess(report: Pick<AnalysisReport, 'packages' | 'context'>, evidence: Record<string, string[]>): { findings: Finding[]; assessment: AnalysisResult } {
+  const findings: Finding[] = [];
+  const add = (id: string, severity: Finding['severity'], title: string, detail: string, items: string[], recommendation: string) => findings.push({ id, severity, title, detail, evidence: items, recommendation });
+  const manifests = report.packages.map(p => p.manifest), c = report.context;
+  if (manifests.some(m => m.debuggable)) add('debug', 'high', 'Debuggable application', 'A manifest enables debugging, which may expose application internals on a connected device.', ['android:debuggable=true'], 'Use a release build with debugging disabled.');
+  if (manifests.some(m => m.usesCleartextTraffic)) add('cleartext', 'medium', 'Cleartext traffic permitted by manifest', 'The manifest flag or target SDK default permits HTTP. A network security configuration can override this; this scan does not resolve that configuration.', ['android:usesCleartextTraffic or target SDK default'], 'Inspect the network security configuration and enforce HTTPS.');
+  const sensitive = c.permissions.filter(p => /(?:CAMERA|RECORD_AUDIO|ACCESS_(?:FINE|COARSE|BACKGROUND)_LOCATION|READ_CONTACTS|READ_SMS|SEND_SMS|READ_PHONE_STATE|READ_CALL_LOG|READ_MEDIA_\w+|READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE|REQUEST_INSTALL_PACKAGES|SYSTEM_ALERT_WINDOW)$/.test(p));
+  if (sensitive.length) add('permissions', 'medium', 'Sensitive permissions requested', 'Permission declarations indicate capabilities the app may request, not proof that they were granted or used.', sensitive, 'Allow only permissions needed for features you use; review Android permission controls.');
+  const exposed = manifests.flatMap(m => m.components).filter(x => x.exported && !x.permission);
+  if (exposed.length) add('exported', 'medium', 'Exported components without a general permission', 'Other apps can address these components. Launcher activities and deep links are often intentionally exported; provider read/write guards and runtime authorization were not evaluated.', [...new Set(exposed.map(x => `${x.type}: ${x.name}`))], 'Review intent validation, caller authorization and whether each component needs to be exported.');
+  if (manifests.some(m => m.allowBackup)) add('backup', 'low', 'Backup enabled by manifest or default', 'Actual backup behavior depends on Android version, device settings and backup rules.', ['android:allowBackup=true or omitted'], 'Review data extraction and backup rules for sensitive data.');
+  if (c.trackerSDKs.length) add('trackers', 'medium', 'Analytics or telemetry SDK indicators', 'Package strings match known SDK namespaces. Inclusion does not prove collection, transmission, or that an SDK is active.', c.trackerSDKs.flatMap(s => [s, ...(evidence[s] || []).map(f => `  ${f}`)]), 'Compare the app privacy disclosures with runtime network observations and available opt-outs.');
+  if (c.endpoints.some(s => s.startsWith('http:'))) add('http', 'low', 'HTTP URL strings present', 'These strings may be documentation or unused code. They do not demonstrate an unencrypted connection.', c.endpoints.filter(s => s.startsWith('http:')), 'Verify which endpoints are actually used and require TLS for sensitive traffic.');
+  if (c.apiKeys.length) add('secrets', 'medium', 'Potential embedded credential patterns', 'Only pattern labels and file locations are retained. Public client identifiers may legitimately match these patterns; validity and access were not tested.', c.apiKeys.flatMap(s => [s, ...(evidence[s] || [])]), 'Review the matched files privately; restrict public keys and revoke any confirmed secret.');
+  if (c.suspiciousPatterns.length) add('code', 'info', 'Code capabilities to review', 'These are common platform APIs and are not malware detections.', c.suspiciousPatterns.flatMap(s => [s, ...(evidence[s] || [])]), 'Review the relevant code paths and validate behavior in an isolated test environment.');
+  const penalty = findings.reduce((n, f) => n + ({ high: 25, medium: 10, low: 3, info: 0 }[f.severity]), 0);
+  const safetyScore = Math.max(0, 100 - penalty);
+  const transparencyScore = Math.max(0, 100 - Math.min(c.trackerSDKs.length * 8, 48) - (c.apiKeys.length ? 12 : 0));
+  return { findings, assessment: {
+    grade: safetyScore >= 90 ? 'A' : safetyScore >= 75 ? 'B' : safetyScore >= 60 ? 'C' : safetyScore >= 40 ? 'D' : 'F', safetyScore, transparencyScore,
+    telemetrySummary: `${c.trackerSDKs.length} analytics/telemetry namespace indicators and ${c.endpoints.length} retained network origins were found. Static strings cannot establish actual data collection or sharing.`,
+    threatModel: `${findings.filter(f => f.severity !== 'info').length} review categories were identified. Consider permission exposure, inter-app entry points, embedded credentials and network configuration. This is a static review, not a malware verdict or a guarantee of safety.`,
+  } };
+}
