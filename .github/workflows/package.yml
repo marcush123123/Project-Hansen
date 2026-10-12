@@ -73,3 +73,24 @@ jobs:
             apk-analyzer/build/SHA256SUMS-*.txt
           if-no-files-found: error
           compression-level: 0
+
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download packaged installers
+        uses: actions/download-artifact@v4
+        with:
+          pattern: hansen-*
+          path: release-assets
+          merge-multiple: true
+      - name: List release assets
+        run: find release-assets -maxdepth 1 -type f -printf '%f\n' | sort
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release-assets/* --verify-tag --generate-notes --title "Hansen $GITHUB_REF_NAME"

@@ -3,6 +3,14 @@
 
 Hansen is a desktop application for static inspection of Android APK and XAPK packages. It presents an in application report and supports PDF export.
 
+## Screenshots
+
+| Malware and reputation evidence | Configuration and telemetry assessment |
+| --- | --- |
+| [![Hansen showing a VirusTotal malicious verdict and supporting evidence](docs/screenshots/hansen-malware-report.png)](docs/screenshots/hansen-malware-report.png) | [![Hansen showing configuration and telemetry score cards](docs/screenshots/hansen-score-overview.png)](docs/screenshots/hansen-score-overview.png) |
+
+Select either screenshot to open the full-size image.
+
 ## Scoring and grades
 
 Hansen displays a separate malware assessment before the configuration grade. A favorable letter grade cannot override a malware warning. Older reports without this assessment must be scanned again.
