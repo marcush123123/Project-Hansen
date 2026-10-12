@@ -21,6 +21,7 @@ let reputationFinished: Promise<void> | null = null;
 let networkController: AbortController | null = null;
 const virusTotal = new VirusTotalService();
 const isDev = process.argv.includes('--dev') && !app.isPackaged;
+app.setName('Hansen');
 const reportDir = () => path.join(app.getPath('userData'), 'reports');
 function getSettings(): LLMSettings {
   const stored = store.get('settings', defaultSettings) as LLMSettings;
@@ -72,7 +73,7 @@ async function saveReport(report: AnalysisReport) {
 }
 async function cancel() { networkController?.abort(); if (active) await active.worker.terminate(); }
 function createWindow() {
-  mainWindow = new BrowserWindow({ width: 1320, height: 920, minWidth: 850, minHeight: 640, title: 'Hansen', icon: path.join(app.getAppPath(), 'assets/icon.png'), backgroundColor: '#0d1926', webPreferences: { preload: path.join(__dirname, '../preload/preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  mainWindow = new BrowserWindow({ width: 1320, height: 920, minWidth: 850, minHeight: 640, title: 'Hansen', icon: path.join(app.getAppPath(), 'assets/icon.png'), backgroundColor: '#070708', webPreferences: { preload: path.join(__dirname, '../preload/preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', event => event.preventDefault());
   mainWindow.on('closed', () => { mainWindow = null; void cancel(); });

@@ -46,6 +46,21 @@ npm run build
 
 Builds all entry points and runs electron-builder for the host OS. Output is in `build/`. Linux uses AppImage; Windows NSIS/portable and macOS DMG/ZIP are configured. Builds are unsigned unless signing is configured separately. Platform configurations are not proof that every platform was tested; consult [TEST_RESULTS.md](TEST_RESULTS.md).
 
+Use the explicit native packaging command for a reproducible platform artifact set:
+
+| Host | Command | Output |
+| --- | --- | --- |
+| Linux x64 | `npm run package:linux` | `Hansen-<version>-linux-x86_64.AppImage` |
+| Windows x64 | `npm run package:windows` | `Hansen-<version>-windows-x64-setup.exe` and `Hansen-<version>-windows-x64-portable.exe` |
+| macOS Intel | `npm run package:mac:x64` | `Hansen-<version>-mac-x64.dmg` and `.zip` |
+| macOS Apple Silicon | `npm run package:mac:arm64` | `Hansen-<version>-mac-arm64.dmg` and `.zip` |
+
+Run these commands on the matching operating system. Then run `npm run verify:artifacts -- <target>`, where the target is `linux-x64`, `windows-x64`, `mac-x64`, or `mac-arm64`. Verification rejects missing or empty installers and writes a platform-specific SHA-256 checksum file in `build/`.
+
+The **Package installers** GitHub Actions workflow runs the same commands on native runners. It starts for tags beginning with `v` (for example, `v1.0.1`) or from **Actions → Package installers → Run workflow**. Each runner uploads its installers and checksum file as a separate workflow artifact.
+
+These builds are intentionally unsigned. Windows 11 SmartScreen and macOS Gatekeeper may warn or block first launch. Do not tell users to disable operating-system security features; sign and notarize public releases when suitable credentials are available.
+
 ## Troubleshooting
 
 | Symptom | Action |

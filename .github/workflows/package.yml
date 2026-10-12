@@ -1,0 +1,75 @@
+name: Package installers
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x64 AppImage
+            runner: ubuntu-latest
+            package-script: package:linux
+            artifact-target: linux-x64
+          - name: Windows x64 installers
+            runner: windows-latest
+            package-script: package:windows
+            artifact-target: windows-x64
+          - name: macOS Intel installers
+            runner: macos-15-intel
+            package-script: package:mac:x64
+            artifact-target: mac-x64
+          - name: macOS Apple Silicon installers
+            runner: macos-15
+            package-script: package:mac:arm64
+            artifact-target: mac-arm64
+    defaults:
+      run:
+        working-directory: apk-analyzer
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apk-analyzer/package-lock.json
+      - name: Install dependencies
+        run: npm ci --include=optional
+      - name: Run service tests
+        run: npm test
+      - name: Type check
+        run: npm run typecheck
+      - name: Package application
+        run: npm run ${{ matrix.package-script }}
+      - name: Verify artifacts and create checksums
+        run: npm run verify:artifacts -- ${{ matrix.artifact-target }}
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: hansen-${{ matrix.artifact-target }}
+          path: |
+            apk-analyzer/build/*.AppImage
+            apk-analyzer/build/*.exe
+            apk-analyzer/build/*.dmg
+            apk-analyzer/build/*.zip
+            apk-analyzer/build/SHA256SUMS-*.txt
+          if-no-files-found: error
+          compression-level: 0

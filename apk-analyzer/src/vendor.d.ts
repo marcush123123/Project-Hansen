@@ -8,3 +8,4 @@ declare module 'adm-zip' {
   export default AdmZip;
 }
 declare module 'xml2js' { export function parseStringPromise(text: string, options?: unknown): Promise<any>; }
+declare const __APP_VERSION__: string;

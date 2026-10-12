@@ -9,7 +9,7 @@ import { ManifestParser, decodeBinaryXml } from '../src/services/ManifestParser'
 import { ExtractionService } from '../src/services/ExtractionService';
 import { LLMService } from '../src/services/LLMService';
 import { analyzeApkWorkflow } from '../src/main/apkAnalyzer';
-import { ReportGenerator } from '../src/services/ReportGenerator';
+import { configurationAssessment, ReportGenerator, telemetryAssessment } from '../src/services/ReportGenerator';
 import { binaryManifest, textManifest, writeApk } from './fixtures';
 const settings = { provider: 'offline' as const, modelName: '', temperature: 0.2 };
 const temp = () => fs.mkdtemp(path.join(os.tmpdir(), 'hansen-test-'));
@@ -39,11 +39,21 @@ test('APK workflow scans compiled strings, redacts credentials, renders evidence
     assert.deepEqual(r.context.apiKeys,['AWS access key pattern']);
     assert.ok(!JSON.stringify(r).includes('AKIA123'));assert.ok(!JSON.stringify(r).includes('do-not-retain'));
     assert.equal(r.coverage.skippedFiles,1);assert.match(r.sha256,/^[a-f0-9]{64}$/);
-    const html=ReportGenerator.buildHtmlReport(r);assert.ok(html.includes('Requested permissions'));assert.ok(html.includes('Exported components'));assert.ok(html.includes('Coverage and limitations'));
+    const html=ReportGenerator.buildHtmlReport(r);assert.ok(html.includes('Requested permissions'));assert.ok(html.includes('Exported components'));assert.ok(html.includes('Coverage and limitations'));assert.ok(html.includes('Low amount of telemetry SDK indicators'));assert.ok(html.includes('Higher is better'));assert.ok(html.includes('does not measure actual data sent'));assert.ok(html.includes('background:#121215'));assert.ok(html.includes('scrollbar-color:#ef233c'));
     r.fileName='<img src=x onerror=alert(1)>';r.assessment.threatModel='<script>alert(1)</script>';
     const escaped=ReportGenerator.buildHtmlReport(r);assert.ok(!escaped.includes('<script>'));assert.ok(escaped.includes('&lt;img'));
     await assert.rejects(fs.stat(extraction), {code:'ENOENT'});
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
+});
+test('score explanations use plain-language severity and consistent color tones', () => {
+  assert.deepEqual(configurationAssessment(100), { label: 'Few configuration concerns detected', tone: 'good' });
+  assert.equal(configurationAssessment(80).tone, 'caution');
+  assert.equal(configurationAssessment(65).tone, 'warning');
+  assert.equal(configurationAssessment(20).tone, 'bad');
+  assert.deepEqual(telemetryAssessment(0), { label: 'No telemetry SDK indicators detected', tone: 'good' });
+  assert.equal(telemetryAssessment(2).tone, 'good');
+  assert.equal(telemetryAssessment(4).tone, 'caution');
+  assert.deepEqual(telemetryAssessment(5), { label: 'High amount of telemetry SDK indicators', tone: 'bad' });
 });
 test('merges base and split APKs from XAPK', async () => {
   const dir=await temp();try { const a=path.join(dir,'base.apk'),b=path.join(dir,'split.apk');writeApk(a);writeApk(b,textManifest('config.en'));

@@ -20,13 +20,14 @@ export default function App() {
     finally { setBusy(false); }
   };
   const open = async (id: string) => { try { setReport(await window.api.getReport(id)); setView('analyze'); setError(''); } catch (e) { setError(String(e)); } };
+  const returnToScanner = () => { setView('analyze'); setReport(null); setError(''); };
   return <div className="app-shell">
-    <aside className="sidebar"><div className="brand"><span className="brand-icon">H</span><div>HANSEN<small>Android intelligence</small></div></div>
+    <aside className="sidebar"><button className="brand" type="button" onClick={returnToScanner} disabled={busy || reputationBusy} aria-label="Return to package inspector"><span className="brand-icon">H</span><span>HANSEN<small>Android intelligence</small></span></button>
       <div className="nav-label">WORKSPACE</div><button className={`nav-item ${view === 'analyze' ? 'selected' : ''}`} onClick={() => setView('analyze')}>◈ &nbsp; Package inspector</button><button className={`nav-item ${view === 'settings' ? 'selected' : ''}`} onClick={() => setView('settings')}>⚙ &nbsp; Analysis settings</button>
       <div className="nav-label history-heading">RECENT REPORTS <span>{history.length}/20</span></div><div className="history-list">{history.length ? history.map(r => <button key={r.id} className={`history-item ${report?.id === r.id ? 'active' : ''}`} disabled={busy || reputationBusy} onClick={() => open(r.id)}><span className="mini-grade">{(r.malwareVerdict === "flagged-malicious" || r.malwareVerdict === "potentially-malicious") ? "!" : r.malwareVerdict === "no-evidence" ? r.grade : "?"}</span><span><strong>{r.packageName}</strong><small>{new Date(r.createdAt).toLocaleDateString()} · {r.fileName.toLowerCase().endsWith('.xapk') ? 'XAPK' : 'APK'}</small><small>{r.malwareTitle || "Malware not assessed"}</small></span></button>) : <p className="history-empty">Completed reports will appear here.</p>}</div>
       <div className="local-note"><span className="status-dot"/> Local static analysis<small>Packages are never installed or executed.</small></div>
     </aside>
-    <div className="workspace"><header className="topbar"><span>Workspace <span className="slash">/</span> {view === 'settings' ? 'Settings' : 'Package inspector'}</span><span className="version">HANSEN · 1.0</span></header><main className="content">
+    <div className="workspace"><header className="topbar"><span>Workspace <span className="slash">/</span> {view === 'settings' ? 'Settings' : 'Package inspector'}</span><span className="version">HANSEN · {__APP_VERSION__}</span></header><main className="content">
       {!window.api && <div className="error" role="alert">Open Hansen in Electron to inspect files. This browser preview has no filesystem bridge.</div>}
       {error && <div className="error" role="alert">{error}<button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
       <div hidden={view !== 'analyze'}>
