@@ -8,7 +8,7 @@
 6. Read the full report in the embedded viewer. **Export PDF** saves a permanent copy; cancelling the save dialog leaves the report open.
 7. Reopen recent completed reports in the sidebar, or choose **New analysis**.
 
-No AI configuration is required. To add AI commentary, open **Analysis settings**, choose Ollama or a cloud provider, enter the model and required key, and save. A cloud selection sends structured metadata to that provider on subsequent scans. Raw code and credential values are not sent.
+The **Analysis settings** page controls optional VirusTotal reputation lookups.
 
 For malware reputation, enable VirusTotal hash lookups in **Analysis settings** and enter a VirusTotal API key. This shares APK hashes with VirusTotal. The report lists each APK's check status; up to four unique hashes are checked automatically. Use **Check hash** for remaining splits or a refreshed result. To submit the actual APK, choose **Upload APK**, select the original package, and review the native confirmation explaining file sharing. Use **Check status** after upload. Unknown hashes, failed checks and pending submissions are not safe verdicts. Read the malware assessment before considering the separate configuration grade.
 

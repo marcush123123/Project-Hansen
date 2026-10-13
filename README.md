@@ -3,13 +3,21 @@
 
 Hansen is a desktop application for static inspection of Android APK and XAPK packages. It presents an in application report and supports PDF export.
 
+Hansen 1.1 centers release comparison: review signing identity continuity and changes to permissions, exposed components, trackers, network origins, code capabilities, findings, and package composition. Comparisons can be exported as JSON or PDF; individual reports support PDF, JSON, and SARIF. See the [v1.1 feature program](apk-analyzer/V1_1_FEATURES.md).
+
 ## Screenshots
 
 | Malware and reputation evidence | Configuration and telemetry assessment |
 | --- | --- |
 | [![Hansen showing a VirusTotal malicious verdict and supporting evidence](docs/screenshots/hansen-malware-report.png)](docs/screenshots/hansen-malware-report.png) | [![Hansen showing configuration and telemetry score cards](docs/screenshots/hansen-score-overview.png)](docs/screenshots/hansen-score-overview.png) |
 
-Select either screenshot to open the full-size image.
+### Compare APK releases
+
+[![Hansen comparing two saved APK versions and highlighting material package changes](docs/screenshots/hansen-release-comparison.png)](docs/screenshots/hansen-release-comparison.png)
+
+Compare saved APK versions to review signing continuity and changes in permissions, exported components, package size, DEX files, native libraries, trackers, endpoints, and findings.
+
+Select any screenshot to open the full-size image.
 
 ## Scoring and grades
 
@@ -29,7 +37,7 @@ Three or more malicious engine detections produce “Flagged malicious by VirusT
 
 The report offers an optional APK upload. Hansen asks you to select the original package, verifies its hash, and requests confirmation before sending any file. VirusTotal may retain and share submitted files. For XAPK containers, only the selected contained APK is uploaded. Uploads are limited to 650 MiB; use Check status to retrieve the completed result. Uploading does not automatically produce a verdict.
 
-VirusTotal requires an account and API key. Its [public API terms](https://docs.virustotal.com/reference/public-vs-premium-api) prohibit commercial product use; commercial deployments require an appropriate licensed account. [File submission documentation](https://docs.virustotal.com/reference/files-scan) describes limits and data sharing. Local analysis remains available without VirusTotal. Optional AI commentary cannot override the malware assessment.
+VirusTotal requires an account and API key. Its [public API terms](https://docs.virustotal.com/reference/public-vs-premium-api) prohibit commercial product use; commercial deployments require an appropriate licensed account. [File submission documentation](https://docs.virustotal.com/reference/files-scan) describes limits and data sharing. Local analysis remains available without VirusTotal.
 
 ## Safety review
 
@@ -51,7 +59,7 @@ npm run build
 npm start
 ```
 
-Local analysis is available without an AI service. See the [application guide](apk-analyzer/README.md), [architecture](apk-analyzer/ARCHITECTURE.md), and [validation results](apk-analyzer/TEST_RESULTS.md).
+See the [application guide](apk-analyzer/README.md), [architecture](apk-analyzer/ARCHITECTURE.md), and [validation results](apk-analyzer/TEST_RESULTS.md).
 
 ## License
 

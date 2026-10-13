@@ -1,7 +1,8 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { MALWARE_PATTERNS } from './MalwareAssessment';
-export const TRACKERS = ['com.facebook.appevents', 'com.google.android.gms.measurement', 'com.google.firebase.analytics', 'com.adjust', 'com.localytics', 'com.flurry', 'com.mixpanel', 'com.amplitude', 'com.appsflyer', 'com.crashlytics', 'com.bytedance.applog'];
+import { TRACKER_CATALOG } from './TrackerCatalog';
+export const TRACKERS = TRACKER_CATALOG.map(t => t.id);
 export class StaticAnalyzer {
   static async analyzeCode(dir: string) {
     const endpoints = new Set<string>(), apiKeys = new Set<string>(), trackerSDKs = new Set<string>(), suspiciousPatterns = new Set<string>();

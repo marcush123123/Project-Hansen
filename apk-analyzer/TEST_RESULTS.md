@@ -1,5 +1,13 @@
 # Validation results
 
+## Hansen 1.1 comparison validation, October 12, 2026
+
+TypeScript validation, the production main/preload/worker/CLI bundles, and the Vite renderer build pass for version 1.1.0. The service suite passes **28 tests**, including the prior malware and archive coverage plus deep-link/provider manifest parsing, deterministic release comparison, signer-change warnings, permission explanations, and SARIF artifact/finding mapping.
+
+The Electron production smoke test passes under Xvfb with its existing test-only `--no-sandbox` override. It validates the About splash, settings, APK and XAPK reports, PDF cancellation/export, the release-comparison workspace, Shift-range history selection, persistent bulk labels, bulk deletion, history reload and restart, cancellation followed by another scan, real-package analysis, PDF generation, and absence of renderer exceptions. The supplied TikTok APK completed in approximately 41 seconds during this run.
+
+Signing-certificate identity extraction, comparison JSON/PDF generation, individual JSON/SARIF report export, history filtering/deletion, and the standalone CLI compile successfully. Cryptographic signature verification, certificate proof-of-rotation validation, compiled network-security resource resolution, and live provider integrations remain outside the 1.1 verification claim.
+
 ## Malware reputation validation, October 11, 2026
 
 Host: Linux x64. TypeScript checks, production bundling and Linux AppImage packaging passed. The service suite passed **23 tests**, including local rule combinations, negative controls, distinct XAPK hashes, snapshot integrity when a source changes, changed-file upload rejection, multipart bytes, upload destination/size restrictions, invalid responses, authorization/quota failures, pending scans, stale results, preservation of prior detections, and report escaping.
@@ -28,7 +36,7 @@ The remaining sections record October 7, 2026 validation on Linux x64, before ma
 - TypeScript validation: passed.
 - Main, worker and preload bundling: passed. Build metadata validates that external imports are Electron/Node built-ins; runtime libraries are bundled.
 - Vite production renderer: passed.
-- Service regression suite: **12 tests passed**, covering binary XML UTF-8/UTF-16, text manifests, export defaults, malformed input, APK scans/redaction, XAPK merging and rejection, archive defenses, HTML escaping, AI response validation/failure fallback, chunk-boundary scanning, cleanup, and split inheritance.
+- Service regression suite: **26 tests passed**, covering binary XML UTF-8/UTF-16, text manifests, export defaults, malformed input, APK scans/redaction, XAPK merging and rejection, archive defenses, HTML escaping, malware assessment, reputation handling, chunk-boundary scanning, cleanup, split inheritance, comparisons, permissions, and SARIF export.
 - Electron **44.7.0**, Vite **8.3.3**, electron-builder **26.15.3**. Node 24 used for validation.
 - `npm run build`: passed in the normal filesystem sandbox using local dependencies. The packaged main/worker/preload/renderer files were verified byte-for-byte against their compiled outputs.
 - Linux AppImage and unpacked application built under `build/`. Packaging uses the installed Electron distribution and compiled bundles, with no production `node_modules` tree.
@@ -82,7 +90,7 @@ The exported sample is `output/tiktok-hansen-report.pdf` (18 A4 pages). It was r
 
 ## Not verified
 
-Live Ollama or cloud inference (no service credentials supplied), Windows/macOS packaging, signing/notarization, Android execution, signature verification, OBB behavior and malware detection accuracy. The scanner's static scope and caps are described in each report and in the README.
+Windows/macOS packaging, signing/notarization, Android execution, signature verification, OBB behavior and malware detection accuracy. The scanner's static scope and caps are described in each report and in the README.
 
 ## Earlier AppImage identity
 

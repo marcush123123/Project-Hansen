@@ -2,6 +2,8 @@
 
 Hansen is a desktop application for static inspection of Android APK and XAPK packages. Reports are available in the application and can be exported as PDF.
 
+Version 1.1 adds change-aware review: compare two saved releases, inspect signing-certificate continuity, and export comparison evidence as JSON or PDF. Reports also include deeper component intent surfaces, explainable permissions, structured tracker context, JSON/SARIF export, searchable history, and explicit deletion. See the [1.1 feature program](V1_1_FEATURES.md).
+
 ## Build
 
 Requires Node.js 22.12 or later and npm 10 or later. The repository selects Node.js 24 through `.nvmrc`. If your terminal uses an older version, follow the [Node.js setup instructions](LAUNCH_GUIDE.md#nodejs-setup) before installing dependencies.
@@ -12,7 +14,13 @@ npm run build
 npm start
 ```
 
-Run `npm run dev` to develop the renderer. Local analysis is the default. Optional AI interpretation is configured in application settings.
+Run `npm run dev` to develop the renderer. Report interpretation is always performed locally; application settings only control optional VirusTotal reputation lookups.
+
+Run a local headless scan without Electron:
+
+```bash
+npm run analyze -- app.apk --format sarif --output app-hansen.sarif
+```
 
 ## Malware assessment
 

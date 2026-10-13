@@ -73,7 +73,6 @@ These builds are intentionally unsigned. Windows 11 SmartScreen and macOS Gateke
 | `ENOSPC` during extraction | Free several GiB in the OS temp filesystem and retry. Handled failures remove that job's temp directory. |
 | Corrupt/missing manifest or unsafe archive | Use a complete original APK/XAPK. Rejected packages do not produce a misleading clean report. |
 | XAPK mismatch/incomplete base | Obtain a container with one base and matching package/version splits. |
-| AI unavailable or invalid | Check model/key/provider connectivity, or select Local report only. Local analysis remains available. |
 | API key disappears after restart | The OS secure-storage backend is unavailable; keys are session-only in that environment. |
 | VirusTotal is unavailable, unknown or rate limited | Check the separate VirusTotal key and account permissions. Unknown hashes are not safe verdicts. Requests are spaced by 16 seconds; wait before retrying quota failures. |
 | VirusTotal upload remains pending | Use Check status later. Hansen does not automatically poll or upload again. Existing evidence is retained while the new scan is pending. |

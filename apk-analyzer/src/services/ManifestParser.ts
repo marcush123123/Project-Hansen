@@ -95,7 +95,19 @@ export class ManifestParser {
       components: (app?.children || []).filter(x => ['activity', 'activity-alias', 'service', 'receiver', 'provider'].includes(x.name)).map(x => {
         const explicit = x.attrs['android:exported'];
         const implicit = x.name === 'provider' ? Number(targetSdk) < 17 : x.children.some(c => c.name === 'intent-filter');
-        return { type: x.name, name: fullName(x.attrs['android:name'] || '(unnamed)'), exported: explicit ? explicit === 'true' : implicit, exportReason: explicit ? 'explicit manifest attribute' : 'Android manifest default', permission: x.attrs['android:permission'] ?? app?.attrs['android:permission'] ?? defaults?.applicationPermission ?? '' };
+        const filters = x.children.filter(c => c.name === 'intent-filter');
+        const intentActions = [...new Set(filters.flatMap(f => f.children.filter(c => c.name === 'action').map(c => c.attrs['android:name']).filter(Boolean)))].sort();
+        const intentCategories = [...new Set(filters.flatMap(f => f.children.filter(c => c.name === 'category').map(c => c.attrs['android:name']).filter(Boolean)))].sort();
+        const deepLinks = [...new Set(filters.flatMap(f => f.children.filter(c => c.name === 'data').map(c => {
+          const scheme = c.attrs['android:scheme'] || '', host = c.attrs['android:host'] || '', port = c.attrs['android:port'] ? `:${c.attrs['android:port']}` : '';
+          const route = c.attrs['android:path'] || c.attrs['android:pathPrefix'] || c.attrs['android:pathPattern'] || '';
+          return scheme || host ? `${scheme || '*'}://${host || '*'}${port}${route}` : c.attrs['android:mimeType'] || '';
+        }).filter(Boolean)))].sort();
+        return {
+          type: x.name, name: fullName(x.attrs['android:name'] || '(unnamed)'), exported: explicit ? explicit === 'true' : implicit,
+          exportReason: explicit ? 'explicit manifest attribute' : 'Android manifest default', permission: x.attrs['android:permission'] ?? app?.attrs['android:permission'] ?? defaults?.applicationPermission ?? '',
+          readPermission: x.attrs['android:readPermission'] || '', writePermission: x.attrs['android:writePermission'] || '', grantUriPermissions: x.attrs['android:grantUriPermissions'] === 'true', intentActions, intentCategories, deepLinks,
+        };
       }),
       debuggable: app?.attrs['android:debuggable'] !== undefined ? app.attrs['android:debuggable'] === 'true' : defaults?.debuggable ?? false, allowBackup: app?.attrs['android:allowBackup'] !== undefined ? app.attrs['android:allowBackup'] !== 'false' : defaults?.allowBackup ?? true,
       usesCleartextTraffic: app?.attrs['android:usesCleartextTraffic'] ? app.attrs['android:usesCleartextTraffic'] === 'true' : defaults?.usesCleartextTraffic ?? Number(targetSdk) < 28,

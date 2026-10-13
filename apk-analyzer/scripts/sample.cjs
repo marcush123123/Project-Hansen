@@ -9,7 +9,7 @@ const os = require('os');
   const { analyzeApkWorkflow } = require('../output/analyzer.cjs');
   const { ReportGenerator } = require('../output/report-generator.cjs');
   const input = resolve(process.argv[2] || '../TikTok+-+Videos,+Shop+&+LIVE_47.1.4_APKPure.apk');
-  const report = await analyzeApkWorkflow(input, { provider: 'offline', modelName: '', temperature: 0.2 }, await mkdtemp(join(os.tmpdir(), 'hansen-sample-')), p => console.log(p.step));
+  const report = await analyzeApkWorkflow(input, await mkdtemp(join(os.tmpdir(), 'hansen-sample-')), p => console.log(p.step));
   await writeFile('output/sample-report.json', JSON.stringify(report, null, 2));
   await writeFile('output/sample-report.html', ReportGenerator.buildHtmlReport(report));
   console.log(JSON.stringify({ package: report.context.packageName, version: report.context.versionName, permissions: report.context.permissions.length, components: report.packages.reduce((n,p) => n+p.manifest.components.length,0), trackers: report.context.trackerSDKs, findings: report.findings.length, coverage: report.coverage, durationMs: report.durationMs, sha256: report.sha256 }, null, 2));

@@ -45,3 +45,4 @@ Desktop.ini
 .vscode/
 *.swp
 *.swo
+local_build.sh

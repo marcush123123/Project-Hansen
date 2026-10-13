@@ -25,9 +25,10 @@ The main window uses sandboxing, context isolation, no Node integration, and blo
 4. Inspect DEX, SO, resource tables and selected text files in 1 MiB chunks. Search Latin-1/UTF-16 strings for SDK namespaces, URL origins, credential patterns and code capability references. Record bounded file evidence and aggregate coverage.
 5. Build structured `ContextJSON`; calculate deterministic local review findings and scores. Separate malware rules correlate capability evidence within each APK and retain the rule version and evidence. Calculate original APK hashes for each XAPK entry.
 6. If enabled, send only that summary to the selected LLM. Validate its response fields and scores. Failure adds a warning while preserving local findings.
-7. Return an `AnalysisReport` to main. When enabled, main checks up to four unique APK hashes through VirusTotal, with one shared rate limiter and cancellable requests. Unchecked splits remain explicitly incomplete. Compute the separate malware assessment, persist atomically, and keep the newest 20 reports. Remove extraction files in `finally`; main also removes temporary files after worker termination or error.
+7. Return an `AnalysisReport` to main. When enabled, main checks up to four unique APK hashes through VirusTotal, with one shared rate limiter and cancellable requests. Unchecked splits remain explicitly incomplete. Compute the separate malware assessment, persist atomically, and keep the newest 100 reports. Remove extraction files in `finally`; main also removes temporary files after worker termination or error.
+8. Saved reports can be compared deterministically without reopening package files. The comparison engine diffs the captured evidence and checks extracted certificate-fingerprint continuity; JSON and PDF comparison exports preserve the result.
 
-`VirusTotalService` uses fixed HTTPS API endpoints, prevents redirects and validates large upload destinations. Requests are spaced by 16 seconds; 429 responses extend the cooldown. File identity, statistics, engine results and dates are validated before verdict calculation. Failed refreshes retain prior positive evidence. Completed negative results older than 30 days are treated as incomplete. At least three malicious engine detections trigger a provider-attributed warning, while smaller positive counts, suspicious detections or local rules trigger a potential-malware warning. No AI output changes this result.
+`VirusTotalService` uses fixed HTTPS API endpoints, prevents redirects and validates large upload destinations. Requests are spaced by 16 seconds; 429 responses extend the cooldown. File identity, statistics, engine results and dates are validated before verdict calculation. Failed refreshes retain prior positive evidence. Completed negative results older than 30 days are treated as incomplete. At least three malicious engine detections trigger a provider-attributed warning, while smaller positive counts, suspicious detections or local rules trigger a potential-malware warning.
 
 Upload is a separate main-process action: select the original APK/XAPK, stage and hash a snapshot, verify it against the saved report, extract only the selected APK where necessary, and request native confirmation. No automatic upload path exists. Multipart uploads above 32 MiB obtain a single-use upload URL; 650 MiB is the maximum supported size. The analysis ID is persisted for manual status refresh. Hash lookup, upload and status checks share the same rate limiter. Upload staging is removed on normal completion, cancellation or failure.
 
@@ -35,7 +36,7 @@ Resource bounds are implemented in `ExtractionService.LIMITS`. A worker has a te
 
 ## Report contract
 
-`AnalysisReport` contains identity/hash, per-package manifests/inventory and hashes, merged context, findings with evidence and recommendations, configuration assessment, optional separate AI assessment, malware assessment, per-APK reputation evidence, warnings and coverage. Malware and reputation fields are optional for backward compatibility; older reports display “Malware not assessed” and require a new scan. Reputation freshness is reevaluated when reports are opened. `ReportGenerator.buildHtmlReport` renders escaped HTML for both the viewer and PDF exporter. PDFs use `BrowserWindow.webContents.printToPDF`, with A4 pagination and page-number footers; there is no Puppeteer or system Chrome dependency.
+`AnalysisReport` contains identity/hash, per-package manifests/inventory and hashes, merged context, findings with evidence and recommendations, configuration assessment, malware assessment, per-APK reputation evidence, warnings and coverage. Malware and reputation fields are optional for backward compatibility; older reports display “Malware not assessed” and require a new scan. Reputation freshness is reevaluated when reports are opened. `ReportGenerator.buildHtmlReport` renders escaped HTML for both the viewer and PDF exporter. PDFs use `BrowserWindow.webContents.printToPDF`, with A4 pagination and page-number footers; there is no Puppeteer or system Chrome dependency.
 
 Local score = 100 minus 25/high, 10/medium, 3/low category; info costs 0. Grades A/B/C/D/F use thresholds 90/75/60/40. Telemetry indicator score = 100 minus min(8 × SDK count, 48), minus 12 for any credential patterns. Scores are bounded to 0–100 and labeled heuristic. They never replace the evidence or claim verified safety.
 
@@ -46,7 +47,7 @@ Local score = 100 minus 25/high, 10/medium, 3/low category; info costs 0. Grades
 | `select-file` | Absolute APK/XAPK path or undefined on cancellation |
 | `analyze-apk` | Completed `AnalysisReport`; emits `analysis-progress` |
 | `cancel-analysis` | Terminates the current worker or aborts a reputation request; an already accepted upload cannot be recalled |
-| `get-settings` / `save-settings` | Validated `LLMSettings` |
+| `get-settings` / `save-settings` | Validated local-analysis and VirusTotal settings |
 | `list-reports` | Recent report summaries |
 | `get-report` | Saved report by UUID |
 | `get-report-html` | Escaped full report HTML by UUID |
@@ -57,7 +58,7 @@ Only the main renderer frame may invoke these handlers. Report IDs cannot be use
 
 ## Persistence and privacy
 
-`electron-store` stores non-secret settings. Separate AI and VirusTotal API keys use OS-backed `safeStorage`, or memory-only fallback when unavailable/basic-text; scaffold plaintext AI keys are migrated. AI requests run in the worker; VirusTotal requests run in main and its key is not passed to the worker. Provider errors are converted to generic warnings so credentials in request errors are not embedded in reports. Credential values are never retained by the scanner; URLs are reduced to origins. VirusTotal is disabled until explicitly enabled with an API key. Hash lookups disclose file interest; confirmed file submissions share the complete selected APK under VirusTotal's terms.
+`electron-store` stores non-secret settings. The VirusTotal API key uses OS-backed `safeStorage`, or memory-only fallback when unavailable/basic-text. VirusTotal requests run in main and its key is not passed to the worker. Credential values are never retained by the scanner; URLs are reduced to origins. VirusTotal is disabled until explicitly enabled with an API key. Hash lookups disclose file interest; confirmed file submissions share the complete selected APK under VirusTotal's terms.
 
 Completed reports are JSON in `userData/reports`, capped at 20; reports are not encrypted. PDF output goes only to the selected destination. Extraction uses the operating-system temp directory. Force-killing the entire application or the OS can leave temp files; normal completion, handled failure, cancel, window close and app quit have cleanup paths.
 
@@ -65,4 +66,4 @@ Completed reports are JSON in `userData/reports`, capped at 20; reports are not 
 
 Vite builds the React renderer with relative asset URLs. `scripts/build-main.cjs` uses esbuild to bundle main, worker and preload as CommonJS; Electron is external. Main and worker runtime libraries are bundled; the build checks that remaining external imports are Electron or Node built-ins. `scripts/before-build.cjs` verifies the compiled entry points and tells electron-builder that runtime dependencies are already handled, avoiding duplicate `node_modules` packaging. Packaging uses the locally installed Electron distribution. `electron-builder.yml` configures platform targets. The production main entry is `dist/main/main.js`.
 
-See [TEST_RESULTS.md](TEST_RESULTS.md) for automated and real-file validation. Unverified areas include actual cloud inference, runtime Android behavior, certificate verification, code signing and other OS builds.
+See [TEST_RESULTS.md](TEST_RESULTS.md) for automated and real-file validation. Unverified areas include runtime Android behavior, certificate verification, code signing and other OS builds.

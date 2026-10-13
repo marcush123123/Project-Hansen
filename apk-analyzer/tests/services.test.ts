@@ -7,11 +7,12 @@ import path from 'path';
 import AdmZip from 'adm-zip';
 import { ManifestParser, decodeBinaryXml } from '../src/services/ManifestParser';
 import { ExtractionService } from '../src/services/ExtractionService';
-import { LLMService } from '../src/services/LLMService';
 import { analyzeApkWorkflow } from '../src/main/apkAnalyzer';
 import { configurationAssessment, ReportGenerator, telemetryAssessment } from '../src/services/ReportGenerator';
+import { ComparisonService } from '../src/services/ComparisonService';
+import { explainPermission } from '../src/services/PermissionCatalog';
+import { SarifGenerator } from '../src/services/SarifGenerator';
 import { binaryManifest, textManifest, writeApk } from './fixtures';
-const settings = { provider: 'offline' as const, modelName: '', temperature: 0.2 };
 const temp = () => fs.mkdtemp(path.join(os.tmpdir(), 'hansen-test-'));
 test('decodes binary Android XML string pools and typed attributes (UTF-8 and UTF-16)', async () => {
   for (const utf8 of [true,false]) {
@@ -32,7 +33,7 @@ test('rejects malformed binary manifests and entity declarations', async () => {
 test('APK workflow scans compiled strings, redacts credentials, renders evidence, cleans extraction', async () => {
   const dir=await temp(), file=path.join(dir,'fixture.APK'), extraction=path.join(dir,'extracted');
   try {
-    writeApk(file);const r=await analyzeApkWorkflow(file,settings,extraction,()=>{});
+    writeApk(file);const r=await analyzeApkWorkflow(file,extraction,()=>{});
     assert.equal(r.context.packageName,'com.example.fixture');assert.equal(r.packages[0].dexFiles,1);
     assert.ok(r.context.trackerSDKs.includes('com.google.firebase.analytics'));
     assert.ok(r.context.endpoints.includes('https://api.example.com'));assert.ok(r.context.endpoints.includes('https://account.example.org'));
@@ -58,12 +59,12 @@ test('score explanations use plain-language severity and consistent color tones'
 test('merges base and split APKs from XAPK', async () => {
   const dir=await temp();try { const a=path.join(dir,'base.apk'),b=path.join(dir,'split.apk');writeApk(a);writeApk(b,textManifest('config.en'));
     const zip=new AdmZip();zip.addFile('base.apk',await fs.readFile(a));zip.addFile('nested/config.en.apk',await fs.readFile(b));zip.addFile('manifest.json',Buffer.from('{"package_name":"untrusted"}'));zip.addFile('main.obb',Buffer.from('data'));const file=path.join(dir,'fixture.XAPK');zip.writeZip(file);
-    const r=await analyzeApkWorkflow(file,settings,path.join(dir,'extract'),()=>{});assert.equal(r.format,'XAPK');assert.equal(r.packages.length,2);assert.equal(r.context.packageName,'com.example.fixture');assert.equal(r.context.permissions.length,1);assert.ok(r.warnings.some(w=>w.includes('OBB')));
+    const r=await analyzeApkWorkflow(file,path.join(dir,'extract'),()=>{});assert.equal(r.format,'XAPK');assert.equal(r.packages.length,2);assert.equal(r.context.packageName,'com.example.fixture');assert.equal(r.context.permissions.length,1);assert.ok(r.warnings.some(w=>w.includes('OBB')));
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });
 test('rejects incomplete or mismatched XAPK sets and removes temporary files on failure', async () => {
   const dir=await temp();try { const a=path.join(dir,'base.apk'),b=path.join(dir,'other.apk');writeApk(a);writeApk(b,textManifest('config.en','com.example.other'));
-    for (const includeBase of [true,false]) {const zip=new AdmZip();if(includeBase)zip.addFile('base.apk',await fs.readFile(a));zip.addFile('other.apk',await fs.readFile(b));const file=path.join(dir,'bad.xapk');zip.writeZip(file);const extraction=path.join(dir,'extract');await assert.rejects(analyzeApkWorkflow(file,settings,extraction,()=>{}),includeBase?/mismatched/:/base APK/);await assert.rejects(fs.stat(extraction),{code:'ENOENT'});}
+    for (const includeBase of [true,false]) {const zip=new AdmZip();if(includeBase)zip.addFile('base.apk',await fs.readFile(a));zip.addFile('other.apk',await fs.readFile(b));const file=path.join(dir,'bad.xapk');zip.writeZip(file);const extraction=path.join(dir,'extract');await assert.rejects(analyzeApkWorkflow(file,extraction,()=>{}),includeBase?/mismatched/:/base APK/);await assert.rejects(fs.stat(extraction),{code:'ENOENT'});}
   } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });
 test('rejects corrupt archives, unsupported files and packages without manifests', async () => {
@@ -82,20 +83,6 @@ test('rejects path traversal, symlinks, duplicate names, oversized and encrypted
   const huge=entry('huge');huge.header.size=300*1024**2;assert.throws(()=>validate([huge]),/size limit/);
   const encrypted=entry('encrypted');encrypted.header.flags=1;assert.throws(()=>validate([encrypted]),/Encrypted/);
 });
-test('AI validates schema, preserves zero scores and rejects fabricated fallbacks', () => {
-  const llm=new LLMService({...settings,provider:'ollama'});const parse=(s:string)=>(llm as any).parseAnalysisResponse(s);
-  const valid={grade:'F',safetyScore:0,transparencyScore:0,telemetrySummary:'Unknown',threatModel:'Uncertain'};assert.equal(parse(JSON.stringify(valid)).safetyScore,0);
-  assert.throws(()=>parse('{}'));assert.throws(()=>parse(JSON.stringify({...valid,safetyScore:101})));assert.throws(()=>parse('no json'));
-});
-test('AI failure preserves local report and records a warning', async () => {
-  const dir=await temp(), original=LLMService.prototype.analyzeApk;
-  try {
-    const file=path.join(dir,'fixture.apk');writeApk(file);
-    LLMService.prototype.analyzeApk=async()=>{throw new Error('simulated unavailable provider');};
-    const report=await analyzeApkWorkflow(file,{...settings,provider:'ollama'},path.join(dir,'extract'),()=>{});
-    assert.ok(report.findings.length>0);assert.equal(report.ai,undefined);assert.ok(report.warnings.some(w=>w.includes('AI interpretation was unavailable')));
-  } finally {LLMService.prototype.analyzeApk=original;await fs.rm(dir,{recursive:true,force:true});}
-});
 test('chunked scanning detects split-boundary ASCII strings and UTF-16 resource strings', async () => {
   const { StaticAnalyzer } = await import('../src/services/StaticAnalyzer');
   const dir=await temp();try {
@@ -108,4 +95,30 @@ test('split manifests inherit base SDK and application flags instead of legacy d
   const base=await ManifestParser.parse(Buffer.from(textManifest()));
   const split=await ManifestParser.parse(Buffer.from('<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.fixture" split="config.en" android:versionCode="1"><application><provider android:name=".SplitProvider"/></application></manifest>'),base);
   assert.equal(split.targetSdk,'34');assert.equal(split.minSdk,'23');assert.equal(split.allowBackup,false);assert.equal(split.usesCleartextTraffic,false);assert.equal(split.debuggable,true);assert.equal(split.components[0].exported,false);
+});
+test('manifest retains deep links, intent actions and provider-specific guards', async () => {
+  const xml = `<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.links"><uses-sdk android:targetSdkVersion="34"/><application><activity android:name=".Open" android:exported="true"><intent-filter><action android:name="android.intent.action.VIEW"/><category android:name="android.intent.category.BROWSABLE"/><data android:scheme="https" android:host="example.com" android:pathPrefix="/open"/></intent-filter></activity><provider android:name=".Files" android:exported="true" android:readPermission="com.example.READ" android:grantUriPermissions="true"/></application></manifest>`;
+  const manifest = await ManifestParser.parse(Buffer.from(xml));
+  assert.deepEqual(manifest.components[0].deepLinks, ['https://example.com/open']);
+  assert.deepEqual(manifest.components[0].intentActions, ['android.intent.action.VIEW']);
+  assert.equal(manifest.components[1].readPermission, 'com.example.READ');
+  assert.equal(manifest.components[1].grantUriPermissions, true);
+});
+test('comparison highlights release deltas and signing identity changes', async () => {
+  const dir=await temp(); try {
+    const file=path.join(dir,'fixture.apk'); writeApk(file);
+    const base=await analyzeApkWorkflow(file,path.join(dir,'a'),()=>{});
+    const target=structuredClone(base); target.id='11111111-1111-4111-8111-111111111111'; target.context.versionCode='2'; target.context.permissions.push('android.permission.RECORD_AUDIO'); target.context.endpoints.push('https://new.example'); target.assessment.safetyScore-=10;
+    base.packages[0].signature={ status:'signed', schemes:['APK Signature Scheme v2'], certificates:[{sha256:'a'.repeat(64)}], detail:'test' };
+    target.packages[0].signature={ status:'signed', schemes:['APK Signature Scheme v2'], certificates:[{sha256:'b'.repeat(64)}], detail:'test' };
+    const comparison=ComparisonService.compare(base,target);
+    assert.equal(comparison.samePackage,true); assert.equal(comparison.signer.status,'changed'); assert.ok(comparison.permissions.added.includes('android.permission.RECORD_AUDIO')); assert.equal(comparison.metrics.configurationScore,-10); assert.match(comparison.headline,/Signing identity changed/);
+  } finally { await fs.rm(dir,{recursive:true,force:true}); }
+});
+test('permission explanations distinguish sensitive capabilities', () => {
+  assert.equal(explainPermission('android.permission.CAMERA').category,'Camera');
+  assert.match(explainPermission('android.permission.SYSTEM_ALERT_WINDOW').review,/clickjacking/);
+});
+test('SARIF export maps deterministic findings and artifact identity', async () => {
+  const dir=await temp(); try { const file=path.join(dir,'fixture.apk'); writeApk(file); const report=await analyzeApkWorkflow(file,path.join(dir,'extract'),()=>{}); const sarif=SarifGenerator.build(report); assert.equal(sarif.version,'2.1.0'); assert.equal(sarif.runs[0].artifacts[0].hashes.sha256,report.sha256); assert.ok(sarif.runs[0].results.length); assert.ok(sarif.runs[0].tool.driver.rules.length); } finally { await fs.rm(dir,{recursive:true,force:true}); }
 });

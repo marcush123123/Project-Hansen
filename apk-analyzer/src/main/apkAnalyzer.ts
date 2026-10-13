@@ -5,10 +5,10 @@ import { ExtractionService, LIMITS } from '../services/ExtractionService';
 import { ManifestParser } from '../services/ManifestParser';
 import { StaticAnalyzer } from '../services/StaticAnalyzer';
 import { assess } from '../services/Assessment';
-import { LLMService } from '../services/LLMService';
-import { AnalysisProgress, AnalysisReport, LLMSettings, PackageSummary } from '../types';
+import { AnalysisProgress, AnalysisReport, PackageSummary } from '../types';
 import { localMalwareFindings, updateMalwareAssessment } from '../services/MalwareAssessment';
-export async function analyzeApkWorkflow(input: string, settings: LLMSettings, tempDir: string, onProgress: (p: AnalysisProgress) => void): Promise<AnalysisReport> {
+import { SignatureService } from '../services/SignatureService';
+export async function analyzeApkWorkflow(input: string, tempDir: string, onProgress: (p: AnalysisProgress) => void): Promise<AnalysisReport> {
   const started = Date.now();
   const step = (name: string) => onProgress({ step: name, status: 'running' });
   try {
@@ -25,10 +25,9 @@ export async function analyzeApkWorkflow(input: string, settings: LLMSettings, t
     const hash = createHash('sha256');
     for await (const chunk of createReadStream(snapshot)) hash.update(chunk);
     const sha256 = hash.digest('hex');
-    await fs.rm(snapshot);
     step('Decoding Android manifests');
     const packages: PackageSummary[] = [];
-    for (const p of extracted.packages) packages.push({ fileName: p.fileName, sha256: p.sha256 || sha256, manifest: await ManifestParser.parseManifest(p.dir), entries: p.entries, dexFiles: p.dexFiles, nativeLibraries: p.nativeLibraries });
+    for (const p of extracted.packages) packages.push({ fileName: p.fileName, sha256: p.sha256 || sha256, manifest: await ManifestParser.parseManifest(p.dir), signature: await SignatureService.inspect(p.sourcePath), entries: p.entries, dexFiles: p.dexFiles, nativeLibraries: p.nativeLibraries });
     const bases = packages.filter(p => !p.manifest.split);
     if (bases.length !== 1) throw new Error('Expected exactly one base APK; the container is incomplete or ambiguous');
     const base = bases[0].manifest;
@@ -48,7 +47,7 @@ export async function analyzeApkWorkflow(input: string, settings: LLMSettings, t
         exportedServices: unique(packages.flatMap(p => p.manifest.components.filter(c => c.exported && c.type === 'service').map(c => c.name))),
         endpoints: origins.slice(0, 250), apiKeys: unique(scans.flatMap(s => s.apiKeys)), trackerSDKs: unique(scans.flatMap(s => s.trackerSDKs)), suspiciousPatterns: unique(scans.flatMap(s => s.suspiciousPatterns)) },
       findings: [], assessment: {} as AnalysisReport['assessment'], warnings: [...extracted.warnings,
-        'Static analysis only: APK code was not executed. Signing certificates, signature validity, runtime behavior and server-side controls were not verified. See the separate VirusTotal section for reputation coverage.',
+        'Static analysis only: APK code was not executed. Signing certificate identity may be extracted, but cryptographic signature validity, runtime behavior and server-side controls are not verified. See the separate VirusTotal section for reputation coverage.',
         'Media, OBB and unrecognized file types are excluded. Obfuscation, encryption, downloaded code and unknown SDKs can hide behavior.',
         'Network strings are reduced to origins; URL paths, credentials, query strings and fragments are omitted. Credential values are never retained.',
         'Resource references such as @0x... are unresolved. Network security and backup XML rules are not interpreted. Permission SDK restrictions are not modeled.'
@@ -60,11 +59,6 @@ export async function analyzeApkWorkflow(input: string, settings: LLMSettings, t
     Object.assign(report, assess(report, evidence));
     report.reputation = packages.map(p => ({ sha256: p.sha256!, fileName: p.fileName, status: 'not-checked', message: 'VirusTotal has not been checked for this APK.' }));
     updateMalwareAssessment(report, localMalwareFindings(report, evidence));
-    if (settings.provider !== 'offline') {
-      step('Generating optional AI interpretation');
-      try { report.ai = await new LLMService(settings).analyzeApk(report.context); report.aiProvider = settings.provider; }
-      catch { report.warnings.push('AI interpretation was unavailable or invalid. The complete local report is still available. Check provider settings and connectivity.'); }
-    }
     report.durationMs = Date.now() - started;
     onProgress({ step: 'Report ready', status: 'completed' });
     return report;

@@ -4,7 +4,7 @@ import { promises as fs } from 'fs';
 import { createHash } from 'crypto';
 export const LIMITS = { archiveBytes: 2 * 1024 ** 3, expandedBytes: 3 * 1024 ** 3, entryBytes: 256 * 1024 ** 2, entries: 100000, packages: 100 };
 export const isSearchable = (name: string) => /\.(dex|so|arsc|xml|json|js|html|txt|properties|java|kt|smali|conf|cfg)$/i.test(name);
-export interface ExtractedPackage { fileName: string; dir: string; entries: number; dexFiles: number; nativeLibraries: number; skippedFiles: number; sha256?: string; }
+export interface ExtractedPackage { fileName: string; dir: string; sourcePath: string; entries: number; dexFiles: number; nativeLibraries: number; skippedFiles: number; sha256?: string; }
 export class ExtractionService {
   static validateEntries(zip: AdmZip, maxEntry = LIMITS.entryBytes) {
     const entries = zip.getEntries();
@@ -30,7 +30,7 @@ export class ExtractionService {
     if (!/\.(apk|xapk)$/i.test(input)) throw new Error('Unsupported file type. Choose .apk or .xapk');
     const warnings: string[] = [], packages: ExtractedPackage[] = [];
     let expanded = 0;
-    const unpackApk = async (zip: AdmZip, fileName: string, sha256?: string) => {
+    const unpackApk = async (zip: AdmZip, fileName: string, sha256?: string, sourcePath?: string, sourceBytes?: Buffer) => {
       const { entries, total } = this.validateEntries(zip);
       expanded += total;
       if (expanded > LIMITS.expandedBytes) throw new Error('Combined APK contents exceed 3 GiB');
@@ -47,7 +47,9 @@ export class ExtractionService {
         if (data.length !== entry.header.size) throw new Error('Archive entry size mismatch');
         await fs.writeFile(out, data);
       }
-      packages.push({ fileName, dir, sha256, entries: entries.length, dexFiles: entries.filter(e => /\.dex$/i.test(e.entryName)).length, nativeLibraries: entries.filter(e => /\.so$/i.test(e.entryName)).length, skippedFiles });
+      const packageSource = sourcePath || path.join(tempDir, `source-${packages.length}.apk`);
+      if (!sourcePath) await fs.writeFile(packageSource, sourceBytes!, { mode: 0o600 });
+      packages.push({ fileName, dir, sourcePath: packageSource, sha256, entries: entries.length, dexFiles: entries.filter(e => /\.dex$/i.test(e.entryName)).length, nativeLibraries: entries.filter(e => /\.so$/i.test(e.entryName)).length, skippedFiles });
     };
     const zip = new AdmZip(input);
     if (/\.xapk$/i.test(input)) {
@@ -57,11 +59,11 @@ export class ExtractionService {
       if (apks.length > LIMITS.packages) throw new Error('XAPK exceeds 100 APK packages');
       for (const entry of apks) {
         const bytes = entry.getData();
-        await unpackApk(new AdmZip(bytes), entry.entryName, createHash('sha256').update(bytes).digest('hex'));
+        await unpackApk(new AdmZip(bytes), entry.entryName, createHash('sha256').update(bytes).digest('hex'), undefined, bytes);
       }
       if (entries.some(e => /\.obb$/i.test(e.entryName))) warnings.push('OBB expansion data is inventoried by the container but is not scanned.');
       warnings.push('XAPK APK entries are analyzed independently and merged; manifest.json is not trusted as package identity.');
-    } else await unpackApk(zip, path.basename(input));
+    } else await unpackApk(zip, path.basename(input), undefined, input);
     return { packages, warnings };
   }
   static async cleanup(tempDir: string) { await fs.rm(tempDir, { recursive: true, force: true }); }
