@@ -2,7 +2,7 @@
 
 ## Hansen 1.1 comparison validation, October 12, 2026
 
-TypeScript validation, the production main/preload/worker/CLI bundles, and the Vite renderer build pass for version 1.1.0. The service suite passes **28 tests**, including the prior malware and archive coverage plus deep-link/provider manifest parsing, deterministic release comparison, signer-change warnings, permission explanations, and SARIF artifact/finding mapping.
+TypeScript validation, the production main/preload/worker/CLI bundles, and the Vite renderer build pass for version 1.1.1. The service suite passes **26 tests**, including the prior malware and archive coverage plus deep-link/provider manifest parsing, deterministic release comparison, signer-change warnings, permission explanations, and SARIF artifact/finding mapping.
 
 The Electron production smoke test passes under Xvfb with its existing test-only `--no-sandbox` override. It validates the About splash, settings, APK and XAPK reports, PDF cancellation/export, the release-comparison workspace, Shift-range history selection, persistent bulk labels, bulk deletion, history reload and restart, cancellation followed by another scan, real-package analysis, PDF generation, and absence of renderer exceptions. The supplied TikTok APK completed in approximately 41 seconds during this run.
 

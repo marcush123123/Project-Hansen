@@ -11,7 +11,7 @@ export class SarifGenerator {
     }])).values()];
     return {
       version: '2.1.0', $schema: 'https://json.schemastore.org/sarif-2.1.0.json', runs: [{
-        tool: { driver: { name: 'Hansen', informationUri: 'https://github.com/', version: '1.1.0', rules } },
+        tool: { driver: { name: 'Hansen', informationUri: 'https://github.com/', version: '1.1.1', rules } },
         artifacts: [{ location: { uri: report.fileName }, hashes: { sha256: report.sha256 }, properties: { packageName: report.context.packageName, versionCode: report.context.versionCode } }],
         results: findings.map(f => ({ ruleId: f.id, level: level(f.severity), message: { text: `${f.detail} Review action: ${f.recommendation}` }, locations: [{ physicalLocation: { artifactLocation: { uri: report.fileName } } }], properties: { evidence: f.evidence, reportId: report.id } })),
         properties: { hansenReportId: report.id, malwareVerdict: report.malware?.verdict || 'not-assessed', configurationScore: report.assessment.safetyScore, telemetryScore: report.assessment.transparencyScore },

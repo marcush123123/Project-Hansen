@@ -3,7 +3,7 @@ import type { API } from '../types';
 const api: API = {
   getPathForFile: file => webUtils.getPathForFile(file),
   reputationAction: (id, sha256, action) => ipcRenderer.invoke('reputation-action', id, sha256, action),
-  analyzeApk: file => ipcRenderer.invoke('analyze-apk', file),
+  analyzeApk: (file, checkVirusTotal) => ipcRenderer.invoke('analyze-apk', file, checkVirusTotal),
   cancelAnalysis: () => ipcRenderer.invoke('cancel-analysis'),
   onAnalysisProgress: callback => { const listener = (_: unknown, data: any) => callback(data); ipcRenderer.on('analysis-progress', listener); return () => ipcRenderer.removeListener('analysis-progress', listener); },
   onFindShortcut: callback => { const listener = () => callback(); ipcRenderer.on('find-shortcut', listener); return () => ipcRenderer.removeListener('find-shortcut', listener); },
@@ -16,5 +16,6 @@ const api: API = {
   updateReportLabels: (ids, label) => ipcRenderer.invoke('update-report-labels', ids, label), deleteReports: ids => ipcRenderer.invoke('delete-reports', ids),
   updateReportPins: (ids, pinned) => ipcRenderer.invoke('update-report-pins', ids, pinned), reorderPinnedReports: ids => ipcRenderer.invoke('reorder-pinned-reports', ids),
   openExternal: url => ipcRenderer.invoke('open-external', url),
+  openExportedFile: path => ipcRenderer.invoke('open-exported-file', path), openExportedDirectory: path => ipcRenderer.invoke('open-exported-directory', path),
 };
 contextBridge.exposeInMainWorld('api', api);

@@ -42,7 +42,7 @@ export class VirusTotalService {
     const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
     let response: Response;
     try { response = await this.transport(url, { ...init, headers: { 'x-apikey': apiKey }, redirect: 'error', signal: combined }); }
-    catch { throw new Error(combined.aborted ? 'VirusTotal request cancelled or timed out' : 'VirusTotal connection failed'); }
+    catch (error) { throw new Error(combined.aborted ? 'VirusTotal request was cancelled or exceeded its time limit.' : `VirusTotal connection failed before a response was received: ${error instanceof Error ? error.message : String(error)}`); }
     if (response.status === 404) throw new Error('VT_NOT_FOUND');
     if (response.status === 401 || response.status === 403) throw new Error('VirusTotal rejected the API key or account permissions');
     if (response.status === 429) {

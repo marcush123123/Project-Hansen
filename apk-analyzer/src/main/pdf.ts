@@ -10,7 +10,11 @@ export async function renderHtmlPdf(html: string, destination: string): Promise<
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   try {
     await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    const pdf = await win.webContents.printToPDF({ printBackground: true, pageSize: 'A4', margins: { top: 0.55, bottom: 0.6, left: 0.5, right: 0.5 }, displayHeaderFooter: true, headerTemplate: '<span></span>', footerTemplate: '<div style="font-size:8px;width:100%;text-align:center;color:#607080">Hansen · <span class="pageNumber"></span> / <span class="totalPages"></span></div>' });
+    // Chromium otherwise leaves the page-margin canvas white even though the
+    // report body is dark. Paint the root canvas so margins and page gaps use
+    // the same background as the printable report.
+    await win.webContents.insertCSS('@page { size: A4; margin: 0.55in 0.5in 0.6in; background: #222126; } html { background: #222126 !important; } @media print { html, body { background: #222126 !important; } }');
+    const pdf = await win.webContents.printToPDF({ printBackground: true, pageSize: 'A4', preferCSSPageSize: true, margins: { top: 0, bottom: 0, left: 0, right: 0 }, displayHeaderFooter: true, headerTemplate: '<span></span>', footerTemplate: '<div style="font-size:8px;width:100%;text-align:center;color:#889095">Hansen · <span class="pageNumber"></span> / <span class="totalPages"></span></div>' });
     await fs.writeFile(destination, pdf);
   } finally { win.destroy(); }
 }

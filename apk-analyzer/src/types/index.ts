@@ -1,5 +1,5 @@
-export interface AppSettings { virusTotalEnabled: boolean; virusTotalApiKey?: string; }
-export const defaultSettings: AppSettings = { virusTotalEnabled: false, virusTotalApiKey: '' };
+export interface AppSettings { virusTotalEnabled: boolean; virusTotalApiKey?: string; historyLimit: number; }
+export const defaultSettings: AppSettings = { virusTotalEnabled: false, virusTotalApiKey: '', historyLimit: 50 };
 export interface Component {
   type: string; name: string; exported: boolean; exportReason: string; permission: string;
   readPermission?: string; writePermission?: string; grantUriPermissions?: boolean;
@@ -57,7 +57,7 @@ export interface ReportComparison {
 }
 export interface API {
   getPathForFile(file: File): string;
-  analyzeApk(path: string): Promise<AnalysisReport>; cancelAnalysis(): Promise<void>;
+  analyzeApk(path: string, checkVirusTotal: boolean): Promise<AnalysisReport>; cancelAnalysis(): Promise<void>;
   onAnalysisProgress(callback: (data: AnalysisProgress) => void): () => void;
   onFindShortcut(callback: () => void): () => void;
   getSettings(): Promise<AppSettings>; saveSettings(settings: AppSettings): Promise<void>;
@@ -70,6 +70,7 @@ export interface API {
   updateReportLabels(ids: string[], label: string): Promise<void>; deleteReports(ids: string[]): Promise<void>;
   updateReportPins(ids: string[], pinned: boolean): Promise<void>; reorderPinnedReports(ids: string[]): Promise<void>;
   openExternal(url: string): Promise<void>;
+  openExportedFile(path: string): Promise<void>; openExportedDirectory(path: string): Promise<void>;
   reputationAction(id: string, sha256: string, action: 'lookup' | 'upload'): Promise<AnalysisReport>;
 }
 declare global { interface Window { api: API; } }

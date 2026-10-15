@@ -1,0 +1,41 @@
+.scan-option { display:flex; align-items:flex-start; gap:11px; width:max-content; max-width:440px; margin:0 auto 22px; padding:12px 15px; text-align:left; border:1px solid #5d1520; border-radius:7px; background:#100b0d; color:#ddd5d7; cursor:pointer; }
+.scan-option input { margin-top:2px; accent-color:#ef233c; }
+.scan-option strong { display:block; font-size:12px; font-weight:600; }
+.scan-option small { margin-top:5px; line-height:1.5; }
+.topbar-tools { display:flex; align-items:center; gap:12px; margin-left:auto; margin-right:20px; }
+.page-history { position:relative; display:flex; }
+.page-history > button { width:32px; height:30px; background:#120c0e; color:#d9cfd2; border:1px solid #5e1521; }
+.page-history > button:first-child { border-radius:6px 0 0 6px; }
+.page-history > button:nth-child(2) { border-left:1px solid #5e1521; border-radius:0 6px 6px 0; }
+.page-history > button:not(:disabled):hover { background:#2a0d14; border-color:#c5283e; }
+.history-menu { position:absolute; z-index:20; top:36px; right:0; width:min(440px, calc(100vw - 40px)); padding:6px; background:#100d0f; border:1px solid #791929; border-radius:7px; box-shadow:0 12px 30px #000b; }
+.history-menu button { display:block; width:100%; padding:9px 10px; text-align:left; background:transparent; color:#ddd4d6; border-radius:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.history-menu button:hover { background:#2a0d14; }
+.history-menu .history-more { margin-top:4px; border-top:1px solid #50121c; border-radius:0 0 4px 4px; color:#ff7183; font-size:18px; text-align:center; }
+.history-dialog-backdrop { position:fixed; z-index:200; inset:0; display:grid; place-items:center; padding:24px; background:#000b; }
+.history-dialog { position:relative; width:min(720px, 92vw); max-height:82vh; padding:26px; border:1px solid #8d1d2f; border-radius:12px; background:#0e0c0e; box-shadow:0 18px 60px #000, 0 0 24px #ef233c22; }
+.history-dialog h2 { margin-bottom:7px; }
+.history-dialog > p:not(.eyebrow) { color:#918589; font-size:11px; }
+.history-dialog-close { position:absolute; top:13px; right:13px; width:30px; height:30px; border-radius:5px; background:transparent; color:#d9cfd2; font-size:18px; }
+.history-dialog-close:hover { background:#2a0d14; color:#ff7183; }
+.history-dialog-list { max-height:60vh; overflow:auto; margin-top:18px; border:1px solid #50121c; border-radius:7px; }
+.history-dialog-list button { display:block; width:100%; padding:11px 13px; border-bottom:1px solid #401019; background:#100d0f; color:#ddd4d6; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.history-dialog-list button:last-child { border-bottom:0; }
+.history-dialog-list button:hover { background:#2a0d14; color:#fff; }
+.label-dialog-backdrop { position:fixed; z-index:220; inset:0; display:grid; place-items:center; padding:24px; background:#000b; }
+.label-dialog { width:min(460px, 92vw); padding:25px; border:1px solid #8d1d2f; border-radius:12px; background:#0e0c0e; box-shadow:0 18px 60px #000, 0 0 24px #ef233c22; }
+.label-dialog h2 { margin-bottom:8px; }
+.label-dialog > p:not(.inline-error) { color:#918589; font-size:12px; line-height:1.6; }
+.label-dialog label { display:block; margin:20px 0 8px; color:#ddd5d7; font-size:12px; }
+.label-dialog input { width:100%; padding:11px 13px; border:1px solid #681622; border-radius:6px; background:#09090a; color:#f1eaec; }
+.label-dialog small { display:block; margin-top:8px; color:#8f8386; overflow-wrap:anywhere; }
+.label-dialog .inline-error { margin-top:10px; font-size:12px; }
+.label-dialog > div { display:flex; justify-content:flex-end; gap:10px; margin-top:22px; }
+.export-result-actions { display:flex; align-items:center; gap:9px; margin:10px 0 16px; }
+.export-result-actions .secondary { padding:8px 13px; }
+.comparison-export-actions { margin-top:-4px; padding:10px 12px; border:1px solid #50121c; border-radius:7px; background:#100d0f; }
+.comparison-export-actions span { margin-right:auto; color:#a99da0; font-size:11px; }
+.link-button { padding:7px 3px; background:transparent; color:#ff7183; text-decoration:underline; text-underline-offset:3px; }
+.link-button:hover { color:#ff9aaa; }
+.vt-key-prompt { margin-top:12px; padding:12px; border:1px solid #631521; border-radius:6px; background:#150c0f; }
+.vt-key-prompt .secondary { margin-right:12px; }

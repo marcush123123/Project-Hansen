@@ -1,19 +1,19 @@
 # Hansen
 ### "You see how this looks, right?"
 
+<p align="center">
+  <img src="HansenLogov3.png" alt="Hansen logo" width="180">
+</p>
+
 Hansen is a desktop application for static inspection of Android APK and XAPK packages. It presents an in application report and supports PDF export.
 
 Hansen 1.1 centers release comparison: review signing identity continuity and changes to permissions, exposed components, trackers, network origins, code capabilities, findings, and package composition. Comparisons can be exported as JSON or PDF; individual reports support PDF, JSON, and SARIF. See the [v1.1 feature program](apk-analyzer/V1_1_FEATURES.md).
 
-## Screenshots
+## Gallery
 
-| Malware and reputation evidence | Configuration and telemetry assessment |
+| Package inspection report | Release comparison |
 | --- | --- |
-| [![Hansen showing a VirusTotal malicious verdict and supporting evidence](docs/screenshots/hansen-malware-report.png)](docs/screenshots/hansen-malware-report.png) | [![Hansen showing configuration and telemetry score cards](docs/screenshots/hansen-score-overview.png)](docs/screenshots/hansen-score-overview.png) |
-
-### Compare APK releases
-
-[![Hansen comparing two saved APK versions and highlighting material package changes](docs/screenshots/hansen-release-comparison.png)](docs/screenshots/hansen-release-comparison.png)
+| [![Hansen showing a completed APK inspection report with configuration and telemetry evidence](docs/screenshots/hansen-package-report.png)](docs/screenshots/hansen-package-report.png) | [![Hansen comparing two saved APK versions and highlighting material package changes](docs/screenshots/hansen-release-comparison.png)](docs/screenshots/hansen-release-comparison.png) |
 
 Compare saved APK versions to review signing continuity and changes in permissions, exported components, package size, DEX files, native libraries, trackers, endpoints, and findings.
 

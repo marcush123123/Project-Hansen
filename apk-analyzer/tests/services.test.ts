@@ -73,12 +73,13 @@ test('rejects corrupt archives, unsupported files and packages without manifests
     const other=path.join(dir,'bad.txt');await fs.writeFile(other,'x');await assert.rejects(ExtractionService.extract(other,path.join(dir,'c')),/Unsupported/);
   } finally {await fs.rm(dir,{recursive:true,force:true});}
 });
-test('rejects path traversal, symlinks, duplicate names, oversized and encrypted entries before extraction', () => {
+test('rejects path traversal, exact duplicate names, oversized and encrypted entries before extraction', () => {
   const entry=(name:string)=>({entryName:name,isDirectory:false,header:{size:1,attr:0,flags:0},getData:()=>Buffer.alloc(1)});
   const validate=(entries:any[])=>ExtractionService.validateEntries({getEntries:()=>entries} as any);
   for(const name of ['../evil','/absolute','C:/evil','a\\b','a/../b']) assert.throws(()=>validate([entry(name)]),/Unsafe/);
-  assert.throws(()=>validate([entry('a'),entry('A')]),/Duplicate/);
-  assert.throws(()=>validate([entry('a/b'),entry('a/./b')]),/Duplicate/);
+  assert.equal(validate([entry('a'),entry('A')]).caseCollisions,1);
+  assert.throws(()=>validate([entry('a'),entry('a')]),/same archive path/);
+  assert.throws(()=>validate([entry('a/b'),entry('a/./b')]),/same archive path/);
   const symlink=entry('link');symlink.header.attr=0xa000<<16;assert.throws(()=>validate([symlink]),/symlink/);
   const huge=entry('huge');huge.header.size=300*1024**2;assert.throws(()=>validate([huge]),/size limit/);
   const encrypted=entry('encrypted');encrypted.header.flags=1;assert.throws(()=>validate([encrypted]),/Encrypted/);

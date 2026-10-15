@@ -22,6 +22,7 @@ let reputationBusy = false;
 let reputationFinished: Promise<void> | null = null;
 let networkController: AbortController | null = null;
 const virusTotal = new VirusTotalService();
+const exportedFiles = new Set<string>();
 const isDev = process.argv.includes('--dev') && !app.isPackaged;
 app.setName('Hansen');
 const reportDir = () => path.join(app.getPath('userData'), 'reports');
@@ -32,15 +33,17 @@ function getSettings(): AppSettings {
   if (encryptedVT && safeStorage.isEncryptionAvailable()) {
     try { virusTotalApiKey = safeStorage.decryptString(Buffer.from(encryptedVT, 'base64')); } catch { /* Request a new key. */ }
   }
-  return { virusTotalEnabled: !!stored.virusTotalEnabled, virusTotalApiKey };
+  const historyLimit = [10, 25, 50, 100].includes(stored.historyLimit) ? stored.historyLimit : defaultSettings.historyLimit;
+  return { virusTotalEnabled: !!stored.virusTotalEnabled, virusTotalApiKey, historyLimit };
 }
 function validateSettings(value: unknown): AppSettings {
   const s = value as AppSettings;
   if (!s || typeof s.virusTotalEnabled !== 'boolean') throw new Error('Invalid settings');
   if (s.virusTotalEnabled !== undefined && typeof s.virusTotalEnabled !== 'boolean') throw new Error('Invalid VirusTotal setting');
   if (s.virusTotalApiKey !== undefined && (typeof s.virusTotalApiKey !== 'string' || s.virusTotalApiKey.length > 1000)) throw new Error('Invalid VirusTotal API key');
+  if (![10, 25, 50, 100].includes(s.historyLimit)) throw new Error('Invalid back-history limit');
   if (s.virusTotalEnabled && !s.virusTotalApiKey?.trim()) throw new Error('Enter a VirusTotal API key');
-  return { virusTotalEnabled: s.virusTotalEnabled, virusTotalApiKey: s.virusTotalApiKey?.trim() || '' };
+  return { virusTotalEnabled: s.virusTotalEnabled, virusTotalApiKey: s.virusTotalApiKey?.trim() || '', historyLimit: s.historyLimit };
 }
 async function listReports() {
   await fs.mkdir(reportDir(), { recursive: true });
@@ -79,6 +82,30 @@ const validateReportIds = (value: unknown): string[] => {
   return [...new Set(value)];
 };
 async function cancel() { networkController?.abort(); if (active) await active.worker.terminate(); }
+function rememberReportSource(id: string, source: string) {
+  const sources = store.get('reportSources', {}) as Record<string, string>;
+  store.set('reportSources', { ...sources, [id]: source });
+}
+function reportSource(id: string): string | undefined {
+  const value = (store.get('reportSources', {}) as Record<string, unknown>)[id];
+  return typeof value === 'string' && path.isAbsolute(value) ? value : undefined;
+}
+async function offerVirusTotalUpload(source: string, report: AnalysisReport, target: NonNullable<AnalysisReport['reputation']>[number], controller: AbortController) {
+  let tempDir = '';
+  try {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'hansen-upload-'));
+    const snapshot = await prepareUpload(source, report, target, tempDir);
+    controller.signal.throwIfAborted();
+    const confirmation = await dialog.showMessageBox(mainWindow!, {
+      type: 'warning', title: 'No VirusTotal report found', message: `Upload the original ${target.fileName} to VirusTotal?`,
+      detail: `No matching report exists for SHA-256 ${target.sha256}.\n\nHansen will upload the same APK used for this report (${(snapshot.bytes / 1024 ** 2).toFixed(2)} MiB); you do not need to choose it again. Submitted files may be retained and shared with security vendors and researchers. Do not submit confidential software. This cannot be undone by Hansen.`,
+      buttons: ['Not now', 'Upload original APK'], defaultId: 0, cancelId: 0, noLink: true,
+    });
+    if (confirmation.response !== 1) return target;
+    const analysisId = await virusTotal.upload(snapshot.file, snapshot.bytes, getSettings().virusTotalApiKey || '', controller.signal);
+    return { ...target, status: 'pending' as const, analysisId, checkedAt: new Date().toISOString(), message: 'Upload accepted by VirusTotal. The analysis is pending; use Check status to retrieve the completed scan.' };
+  } finally { if (tempDir) await fs.rm(tempDir, { recursive: true, force: true }); }
+}
 function createWindow() {
   mainWindow = new BrowserWindow({ width: 1320, height: 920, minWidth: 850, minHeight: 640, title: 'Hansen', icon: path.join(app.getAppPath(), 'assets/icon.png'), backgroundColor: '#070708', webPreferences: { preload: path.join(__dirname, '../preload/preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -93,7 +120,7 @@ app.whenReady().then(() => {
   // Discard legacy provider credentials and retain only current settings.
   store.delete('encryptedApiKey');
   const previousSettings = store.get('settings', defaultSettings) as AppSettings;
-  store.set('settings', { virusTotalEnabled: !!previousSettings.virusTotalEnabled });
+  store.set('settings', { virusTotalEnabled: !!previousSettings.virusTotalEnabled, historyLimit: [10, 25, 50, 100].includes(previousSettings.historyLimit) ? previousSettings.historyLimit : defaultSettings.historyLimit });
   const handle = (channel: string, fn: (...args: any[]) => any) => ipcMain.handle(channel, (event, ...args) => {
     if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) throw new Error('Untrusted IPC sender');
     return fn(...args);
@@ -111,9 +138,10 @@ app.whenReady().then(() => {
     const result = await dialog.showOpenDialog(mainWindow!, { properties: ['openFile'], filters: [{ name: 'Android packages', extensions: ['apk','xapk'] }] });
     return result.canceled ? undefined : result.filePaths[0];
   });
-  handle('analyze-apk', async (input: string) => {
+  handle('analyze-apk', async (input: string, checkVirusTotal: boolean) => {
     if (active || reputationBusy) throw new Error('An analysis is already running');
     if (typeof input !== 'string' || !path.isAbsolute(input) || !/\.(apk|xapk)$/i.test(input)) throw new Error('Choose an APK or XAPK file');
+    if (typeof checkVirusTotal !== 'boolean') throw new Error('Invalid VirusTotal scan selection');
     // Reserve before the first await so rapid requests cannot start two workers.
     let release: () => void = () => {};
     const reserved = { worker: { terminate: async () => { release(); } } as unknown as Worker, tempDir: '' };
@@ -140,13 +168,15 @@ app.whenReady().then(() => {
         worker.once('exit', () => reject(new Error('Analysis cancelled or worker stopped')));
       });
       clearTimeout(timer);
-      if (settings.virusTotalEnabled && settings.virusTotalApiKey) {
+      if (checkVirusTotal) {
+        if (!settings.virusTotalApiKey) throw new Error('VirusTotal checking was selected, but no API key is saved. Open Analysis settings and paste your key, then try again.');
         // Bound automatic work to one public-API minute. Every other split stays explicitly unchecked.
         const unique = [...new Map((report.reputation || []).map(r => [r.sha256, r])).values()].slice(0, 4);
         for (const target of unique) {
           controller.signal.throwIfAborted();
           mainWindow?.webContents.send('analysis-progress', { step: `Checking VirusTotal: ${target.fileName}`, status: 'running' });
-          const result = await virusTotal.lookup(target, settings.virusTotalApiKey, controller.signal);
+          let result = await virusTotal.lookup(target, settings.virusTotalApiKey, controller.signal);
+          if (result.status === 'not-found') result = await offerVirusTotalUpload(input, report, result, controller);
           report.reputation = report.reputation!.map(r => r.sha256 === result.sha256 ? { ...result, fileName: r.fileName } : r);
           if (result.status === 'error') break;
         }
@@ -154,6 +184,7 @@ app.whenReady().then(() => {
       controller.signal.throwIfAborted();
       updateMalwareAssessment(report);
       await saveReport(report);
+      rememberReportSource(report.id, input);
       for (const old of (await listReports()).slice(100)) await fs.rm(path.join(reportDir(), `${old.id}.json`), { force: true });
       return report;
     } finally {
@@ -182,6 +213,7 @@ app.whenReady().then(() => {
     const destination = result.filePath.toLowerCase().endsWith(`.${format}`) ? result.filePath : `${result.filePath}.${format}`;
     if (format === 'pdf') await renderHtmlPdf(ComparisonReportGenerator.buildHtml(comparison), destination);
     else await fs.writeFile(destination, JSON.stringify(comparison, null, 2), { mode: 0o600 });
+    exportedFiles.add(path.resolve(destination));
     return destination;
   });
   handle('delete-report', async (id: string) => {
@@ -190,13 +222,16 @@ app.whenReady().then(() => {
     await fs.rm(path.join(reportDir(), `${id}.json`), { force: true });
     const labels = await readReportLabels(); delete labels[id]; await writeReportLabels(labels);
     await writeReportPins((await readReportPins()).filter(pin => pin !== id));
+    const sources = store.get('reportSources', {}) as Record<string, string>; delete sources[id]; store.set('reportSources', sources);
   });
   handle('delete-reports', async (value: unknown) => {
     if (active || reputationBusy) throw new Error('Wait for the current analysis to finish');
     const ids = validateReportIds(value), labels = await readReportLabels(), pins = await readReportPins();
-    for (const id of ids) { await fs.rm(path.join(reportDir(), `${id}.json`), { force: true }); delete labels[id]; }
+    const sources = store.get('reportSources', {}) as Record<string, string>;
+    for (const id of ids) { await fs.rm(path.join(reportDir(), `${id}.json`), { force: true }); delete labels[id]; delete sources[id]; }
     await writeReportLabels(labels);
     await writeReportPins(pins.filter(pin => !ids.includes(pin)));
+    store.set('reportSources', sources);
   });
   handle('update-report-labels', async (value: unknown, label: unknown) => {
     if (active || reputationBusy) throw new Error('Wait for the current analysis to finish');
@@ -222,16 +257,33 @@ app.whenReady().then(() => {
     await writeReportPins(ids);
   });
   handle('open-external', async (url: unknown) => {
-    const allowed = new Set(['https://github.com/marcush123123/Project-Hansen', 'https://github.com/marcush123123/Project-Hansen/releases']);
-    if (typeof url !== 'string' || !allowed.has(url)) throw new Error('This external link is not allowed');
+    const allowed = new Set(['https://github.com/marcush123123/Project-Hansen', 'https://github.com/marcush123123/Project-Hansen/releases', 'https://www.virustotal.com/gui/my-apikey']);
+    if (typeof url !== 'string') throw new Error('This external link is not allowed');
+    const parsed = new URL(url);
+    const virusTotalReport = parsed.origin === 'https://www.virustotal.com' && /^\/gui\/file\/[a-f0-9]{64}(?:\/detection)?$/.test(parsed.pathname) && !parsed.search && !parsed.hash;
+    if (!allowed.has(url) && !virusTotalReport) throw new Error('This external link is not allowed');
     await shell.openExternal(url);
   });
+  const validatedExport = async (value: unknown) => {
+    if (typeof value !== 'string' || !path.isAbsolute(value)) throw new Error('Invalid exported file path');
+    const resolved = path.resolve(value);
+    if (!exportedFiles.has(resolved)) throw new Error('This file was not exported during the current Hansen session');
+    const stat = await fs.stat(resolved);
+    if (!stat.isFile()) throw new Error('The exported file no longer exists');
+    return resolved;
+  };
+  handle('open-exported-file', async (value: unknown) => {
+    const file = await validatedExport(value), failure = await shell.openPath(file);
+    if (failure) throw new Error(`Could not open the exported file: ${failure}`);
+  });
+  handle('open-exported-directory', async (value: unknown) => { shell.showItemInFolder(await validatedExport(value)); });
   handle('export-json', async (id: string) => {
     const report = await getReport(id);
     const result = await dialog.showSaveDialog(mainWindow!, { defaultPath: `${report.context.packageName.replace(/[^\w.-]/g, '_')}-hansen.json`, filters: [{ name: 'Hansen JSON report', extensions: ['json'] }] });
     if (result.canceled || !result.filePath) return null;
     const destination = /\.json$/i.test(result.filePath) ? result.filePath : `${result.filePath}.json`;
     await fs.writeFile(destination, JSON.stringify(report, null, 2), { mode: 0o600 });
+    exportedFiles.add(path.resolve(destination));
     return destination;
   });
   handle('export-sarif', async (id: string) => {
@@ -240,6 +292,7 @@ app.whenReady().then(() => {
     if (result.canceled || !result.filePath) return null;
     const destination = /\.sarif$/i.test(result.filePath) ? result.filePath : `${result.filePath}.sarif`;
     await fs.writeFile(destination, JSON.stringify(SarifGenerator.build(report), null, 2), { mode: 0o600 });
+    exportedFiles.add(path.resolve(destination));
     return destination;
   });
   handle('reputation-action', async (id: string, sha256: string, action: string) => {
@@ -251,36 +304,30 @@ app.whenReady().then(() => {
     let finish: () => void = () => {};
     reputationFinished = new Promise<void>(resolve => { finish = resolve; });
     const controller = new AbortController(); networkController = controller;
-    let tempDir = '';
     try {
       const report = await getReport(id);
       const target = report.reputation?.find(r => r.sha256 === sha256);
       if (!target) throw new Error('No APK hash is available. Analyze this package again.');
       let result = target;
-      if (action === 'lookup') result = await virusTotal.lookup(target, settings.virusTotalApiKey, controller.signal);
+      if (action === 'lookup') {
+        result = await virusTotal.lookup(target, settings.virusTotalApiKey, controller.signal);
+        if (result.status === 'not-found') {
+          const source = reportSource(report.id);
+          if (!source) throw new Error('No VirusTotal match was found, but Hansen cannot locate the original package for this older report. Analyze the APK again to enable direct upload.');
+          result = await offerVirusTotalUpload(source, report, result, controller);
+        }
+      }
       else {
-        const choice = await dialog.showOpenDialog(mainWindow!, { title: 'Select the original package for this report', properties: ['openFile'], filters: [{ name: 'Original Android package', extensions: [report.format.toLowerCase()] }] });
-        if (choice.canceled || !choice.filePaths[0]) return report;
-        tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'hansen-upload-'));
-        const snapshot = await prepareUpload(choice.filePaths[0], report, target, tempDir);
-        controller.signal.throwIfAborted();
-        const confirmation = await dialog.showMessageBox(mainWindow!, {
-          type: 'warning', title: 'Upload APK to VirusTotal?', message: `Upload ${target.fileName} (${(snapshot.bytes / 1024 ** 2).toFixed(2)} MiB)?`,
-          detail: `SHA-256: ${target.sha256}\n\nThis sends the complete APK to VirusTotal. Submitted files can be retained and shared with security vendors and the research community. Do not submit confidential software. For XAPK files, only this selected APK is uploaded. This cannot be undone by Hansen.`,
-          buttons: ['Cancel', 'Upload APK'], defaultId: 0, cancelId: 0, noLink: true,
-        });
-        if (confirmation.response !== 1) return report;
-        controller.signal.throwIfAborted();
-        const analysisId = await virusTotal.upload(snapshot.file, snapshot.bytes, settings.virusTotalApiKey, controller.signal);
-        result = { ...target, status: 'pending', analysisId, checkedAt: new Date().toISOString(), message: 'Upload accepted. Use Check status to retrieve the analysis. Previous detections, if present, remain visible.' };
+        const source = reportSource(report.id);
+        if (!source) throw new Error('Hansen cannot locate the original package for this older report. Analyze the APK again to enable direct upload.');
+        result = await offerVirusTotalUpload(source, report, target, controller);
       }
       report.reputation = report.reputation!.map(r => r.sha256 === sha256 ? { ...result, fileName: r.fileName } : r);
       updateMalwareAssessment(report);
       await saveReport(report);
       return report;
     } finally {
-      try { if (tempDir) await fs.rm(tempDir, { recursive: true, force: true }); }
-      finally { reputationBusy = false; networkController = null; reputationFinished = null; finish(); }
+      reputationBusy = false; networkController = null; reputationFinished = null; finish();
     }
   });
   handle('get-report', getReport);
@@ -291,6 +338,7 @@ app.whenReady().then(() => {
     if (result.canceled || !result.filePath) return null;
     const destination = /\.pdf$/i.test(result.filePath) ? result.filePath : `${result.filePath}.pdf`;
     await renderPdf(report, destination);
+    exportedFiles.add(path.resolve(destination));
     return destination;
   });
   createWindow();

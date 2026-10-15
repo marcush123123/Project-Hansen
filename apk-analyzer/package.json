@@ -1,6 +1,6 @@
 {
   "name": "hansen",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Desktop application for static inspection of Android APK and XAPK packages",
   "main": "dist/main/main.js",
   "homepage": "./",

@@ -9,20 +9,23 @@ export class ExtractionService {
   static validateEntries(zip: AdmZip, maxEntry = LIMITS.entryBytes) {
     const entries = zip.getEntries();
     if (entries.length > LIMITS.entries) throw new Error('Archive exceeds 100,000 entries');
-    const names = new Set<string>(); let total = 0;
+    const names = new Set<string>(), foldedNames = new Set<string>(), caseCollisions = new Set<string>(); let total = 0;
     for (const entry of entries) {
       const name = entry.entryName;
       if (!name || name.includes('\\') || name.includes('\0') || name.startsWith('/') || /^[A-Za-z]:/.test(name) || name.split('/').includes('..')) throw new Error('Unsafe archive entry path');
-      const key = path.posix.normalize(name).replace(/\/+$/, '').toLowerCase();
-      if (names.has(key)) throw new Error('Duplicate archive entry path');
+      const key = path.posix.normalize(name).replace(/\/+$/, '');
+      if (names.has(key)) throw new Error('The package contains the same archive path more than once. Hansen cannot determine which copy is authoritative, so the package was not extracted.');
       names.add(key);
+      const foldedKey = key.toLowerCase();
+      if (foldedNames.has(foldedKey)) caseCollisions.add(foldedKey);
+      foldedNames.add(foldedKey);
       if (((entry.header.attr >>> 16) & 0xf000) === 0xa000) throw new Error('Archive symlinks are not supported');
       if (entry.header.flags & 1) throw new Error('Encrypted archives are not supported');
       if (entry.header.size > maxEntry) throw new Error(`Archive entry exceeds size limit: ${name}`);
       total += entry.header.size;
       if (total > LIMITS.expandedBytes) throw new Error('Archive expands beyond the 3 GiB safety limit');
     }
-    return { entries, total };
+    return { entries, total, caseCollisions: caseCollisions.size };
   }
   static async extract(input: string, tempDir: string): Promise<{ packages: ExtractedPackage[]; warnings: string[] }> {
     const stat = await fs.stat(input);
@@ -31,22 +34,26 @@ export class ExtractionService {
     const warnings: string[] = [], packages: ExtractedPackage[] = [];
     let expanded = 0;
     const unpackApk = async (zip: AdmZip, fileName: string, sha256?: string, sourcePath?: string, sourceBytes?: Buffer) => {
-      const { entries, total } = this.validateEntries(zip);
+      const { entries, total, caseCollisions } = this.validateEntries(zip);
       expanded += total;
       if (expanded > LIMITS.expandedBytes) throw new Error('Combined APK contents exceed 3 GiB');
       if (!entries.some(e => e.entryName === 'AndroidManifest.xml')) throw new Error(`${fileName}: missing AndroidManifest.xml`);
       const dir = path.join(tempDir, `package-${packages.length}`);
       await fs.mkdir(dir, { recursive: true });
       let skippedFiles = 0;
-      for (const entry of entries) {
+      for (const [index, entry] of entries.entries()) {
         if (entry.isDirectory) continue;
         if (!isSearchable(entry.entryName)) { skippedFiles++; continue; }
-        const out = path.join(dir, entry.entryName);
+        // Keep the manifest at its expected location. Every other scanned entry gets
+        // a unique internal name so case-only resource names remain safe on Windows.
+        const extension = path.posix.extname(entry.entryName).toLowerCase();
+        const out = entry.entryName === 'AndroidManifest.xml' ? path.join(dir, entry.entryName) : path.join(dir, 'content', `${index.toString().padStart(6, '0')}${extension}`);
         await fs.mkdir(path.dirname(out), { recursive: true });
         const data = entry.getData();
         if (data.length !== entry.header.size) throw new Error('Archive entry size mismatch');
         await fs.writeFile(out, data);
       }
+      if (caseCollisions) warnings.push(`${fileName} contains ${caseCollisions} archive path collision${caseCollisions === 1 ? '' : 's'} that differ only by letter case. Hansen isolated these entries so they can be scanned safely on this operating system.`);
       const packageSource = sourcePath || path.join(tempDir, `source-${packages.length}.apk`);
       if (!sourcePath) await fs.writeFile(packageSource, sourceBytes!, { mode: 0o600 });
       packages.push({ fileName, dir, sourcePath: packageSource, sha256, entries: entries.length, dexFiles: entries.filter(e => /\.dex$/i.test(e.entryName)).length, nativeLibraries: entries.filter(e => /\.so$/i.test(e.entryName)).length, skippedFiles });
