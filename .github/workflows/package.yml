@@ -62,7 +62,7 @@ jobs:
       - name: Verify artifacts and create checksums
         run: npm run verify:artifacts -- ${{ matrix.artifact-target }}
       - name: Upload installers
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: hansen-${{ matrix.artifact-target }}
           path: |
